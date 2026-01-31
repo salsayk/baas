@@ -394,7 +394,7 @@ export function Sidebar() {
 
       {/* Mobile Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-full w-72 bg-white border-r border-slate-200 flex flex-col z-50 lg:hidden transform transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 left-0 h-full w-72 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 flex flex-col z-50 lg:hidden transform transition-transform duration-300 ease-in-out shadow-xl ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

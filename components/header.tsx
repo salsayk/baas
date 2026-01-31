@@ -151,11 +151,11 @@ export function Header() {
 
       {/* Mobile Menu */}
       <div
-        className={`fixed top-16 left-0 right-0 bottom-0 bg-background z-50 md:hidden transform transition-transform duration-300 ease-in-out ${
+        className={`fixed top-16 left-0 right-0 bottom-0 bg-white dark:bg-slate-950 z-50 md:hidden transform transition-transform duration-300 ease-in-out shadow-lg ${
           mobileMenuOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <nav className="flex flex-col p-6 space-y-6">
+        <nav className="flex flex-col p-6 space-y-6 text-foreground">
           {/* Navigation Links */}
           <div className="flex flex-col space-y-4">
             <Link
@@ -194,7 +194,7 @@ export function Header() {
             ) : session ? (
               <>
                 {/* User Info */}
-                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
                   {session.user?.image && (
                     <Image
                       src={session.user.image}
