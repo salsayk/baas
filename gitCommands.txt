@@ -1,0 +1,9 @@
+git remote set-url origin https://github.com/salsayk/baas.git
+git add .  
+ git status 
+git commit -m  "LangChain with structured data"
+git push -u origin main 
+
+run node:
+npm run dev
+originyarn run dev

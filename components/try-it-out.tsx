@@ -9,7 +9,7 @@ import { ArrowRight, Loader2, Sparkles } from "lucide-react"
 export function TryItOut() {
   const router = useRouter()
   const { data: session, status } = useSession()
-  const [githubUrl, setGithubUrl] = useState("https://github.com/salsayk/udemy_dandi")
+  const [githubUrl, setGithubUrl] = useState("https://github.com/salsayk/baas")
   const [isRedirecting, setIsRedirecting] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -214,7 +214,7 @@ export function TryItOut() {
                       Summary
                     </h4>
                     <p className="text-sm text-muted-foreground leading-relaxed">
-                      The repository &apos;salsayk/udemy_dandi&apos; is a Next.js project that serves as a practical example for a Udemy course focused on application generation through cursor prompting. It provides a straightforward setup for running a development server and includes features such as automatic page updates and font optimization. The project is aimed at developers who want to enhance their skills in Next.js and TypeScript, offering resources and documentation for further learning.
+                      The repository &apos;salsayk/baas&apos; is a Next.js project that serves as a practical example for a Udemy course focused on application generation through cursor prompting. It provides a straightforward setup for running a development server and includes features such as automatic page updates and font optimization. The project is aimed at developers who want to enhance their skills in Next.js and TypeScript, offering resources and documentation for further learning.
                     </p>
                   </div>
 

@@ -26,7 +26,7 @@ export function CTA() {
             Ready to analyze your repositories?
           </h2>
           <p className="text-lg text-muted-foreground text-pretty mb-8">
-            Join thousands of developers using Dandi to gain deeper insights into their GitHub projects.
+            Join thousands of customers using BAAS to manage their custoers bills.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button 

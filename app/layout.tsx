@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dandi - API Management Platform",
-  description: "Manage your API keys and access AI-powered tools",
+  title: "BAAS - Bill Management for SMBs",
+  description: "Manage bills for SMBs",
 };
 
 export default async function RootLayout({

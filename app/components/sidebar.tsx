@@ -36,7 +36,7 @@ const navItems: NavItem[] = [
   { name: "Use Cases", icon: "sparkles", href: "/use-cases" },
   { name: "Billing", icon: "credit-card", href: "/billing" },
   { name: "Documentation", icon: "file-text", href: "https://docs.example.com", external: true },
-  { name: "Dandi MCP", icon: "plug", href: "https://mcp.example.com", external: true },
+  { name: "BAAS MCP", icon: "plug", href: "https://mcp.example.com", external: true },
 ];
 
 // Icon components
@@ -125,7 +125,7 @@ function Logo() {
         </svg>
       </div>
       <span className="text-xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
-        dandi
+        BAAS
       </span>
     </Link>
   );

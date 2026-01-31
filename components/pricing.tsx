@@ -62,7 +62,7 @@ export function Pricing() {
   const handlePlanClick = (planName: string) => {
     if (planName === "Enterprise") {
       // For enterprise, open email client
-      window.location.href = "mailto:sales@dandi.dev"
+      window.location.href = "mailto:yosy.kospen@gmail.com"
       return
     }
     

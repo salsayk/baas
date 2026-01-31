@@ -60,7 +60,7 @@ export function Header() {
           {/* Logo */}
           <div className="flex items-center gap-2">
             <GithubIcon className="h-6 w-6 text-primary" />
-            <span className="text-lg sm:text-xl font-bold text-balance">Dandi Github Analyzer</span>
+            <span className="text-lg sm:text-xl font-bold text-balance"> BAAS - Bill Management for SMBs</span>
           </div>
 
           {/* Desktop Navigation */}
