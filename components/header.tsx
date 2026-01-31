@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import Image from "next/image"
+import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { GithubIcon, Menu, X } from "lucide-react"
 import { useSession, signIn, signOut } from "next-auth/react"
@@ -141,41 +142,49 @@ export function Header() {
         </div>
       </div>
 
-      {/* Mobile Menu Overlay */}
-      {mobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={closeMobileMenu}
-        />
-      )}
+      {/* Mobile Menu - rendered via portal with solid background for readability */}
+      {mounted &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <>
+            {/* Overlay */}
+            {mobileMenuOpen && (
+              <div
+                className="fixed inset-0 z-[100] md:hidden"
+                style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+                onClick={closeMobileMenu}
+                aria-hidden="true"
+              />
+            )}
 
-      {/* Mobile Menu */}
-      <div
-        className={`fixed top-16 left-0 right-0 bottom-0 bg-white dark:bg-slate-950 z-50 md:hidden transform transition-transform duration-300 ease-in-out shadow-lg ${
-          mobileMenuOpen ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
-        <nav className="flex flex-col p-6 space-y-6 text-foreground">
-          {/* Navigation Links */}
-          <div className="flex flex-col space-y-4">
+            {/* Menu panel - solid opaque background */}
+            <div
+              className={`fixed top-16 left-0 right-0 bottom-0 z-[101] md:hidden transform transition-transform duration-300 ease-in-out ${
+                mobileMenuOpen ? "translate-x-0" : "translate-x-full"
+              }`}
+              style={{ backgroundColor: "#ffffff" }}
+            >
+              <nav className="flex flex-col p-6 space-y-6">
+          {/* Navigation Links - solid bg for readability */}
+          <div className="flex flex-col gap-2">
             <Link
               href="#features"
               onClick={closeMobileMenu}
-              className="text-lg font-medium text-foreground hover:text-primary transition-colors py-2"
+              className="block text-lg font-medium py-3 px-4 rounded-lg bg-slate-100 text-slate-900 hover:bg-slate-200 active:bg-slate-200 transition-colors"
             >
               Features
             </Link>
             <Link
               href="#how-it-works"
               onClick={closeMobileMenu}
-              className="text-lg font-medium text-foreground hover:text-primary transition-colors py-2"
+              className="block text-lg font-medium py-3 px-4 rounded-lg bg-slate-100 text-slate-900 hover:bg-slate-200 active:bg-slate-200 transition-colors"
             >
               How It Works
             </Link>
             <Link
               href="#pricing"
               onClick={closeMobileMenu}
-              className="text-lg font-medium text-foreground hover:text-primary transition-colors py-2"
+              className="block text-lg font-medium py-3 px-4 rounded-lg bg-slate-100 text-slate-900 hover:bg-slate-200 active:bg-slate-200 transition-colors"
             >
               Pricing
             </Link>
@@ -184,17 +193,17 @@ export function Header() {
           {/* Divider */}
           <div className="border-t border-border" />
 
-          {/* Auth Section */}
-          <div className="flex flex-col space-y-4">
+          {/* Auth Section - solid backgrounds */}
+          <div className="flex flex-col gap-3">
             {!mounted || status === "loading" ? (
               <div className="flex flex-col gap-3">
-                <div className="h-12 w-full bg-muted animate-pulse rounded-lg" />
-                <div className="h-12 w-full bg-muted animate-pulse rounded-lg" />
+                <div className="h-12 w-full rounded-lg animate-pulse" style={{ backgroundColor: "#f1f5f9" }} />
+                <div className="h-12 w-full rounded-lg animate-pulse" style={{ backgroundColor: "#f1f5f9" }} />
               </div>
             ) : session ? (
               <>
                 {/* User Info */}
-                <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                <div className="flex items-center gap-3 p-3 rounded-lg" style={{ backgroundColor: "#f1f5f9" }}>
                   {session.user?.image && (
                     <Image
                       src={session.user.image}
@@ -205,8 +214,8 @@ export function Header() {
                     />
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{session.user?.name}</p>
-                    <p className="text-sm text-muted-foreground truncate">{session.user?.email}</p>
+                    <p className="font-medium truncate text-slate-900">{session.user?.name}</p>
+                    <p className="text-sm truncate text-slate-600">{session.user?.email}</p>
                   </div>
                 </div>
                 <Link href="/dashboards" onClick={closeMobileMenu}>
@@ -229,8 +238,11 @@ export function Header() {
               </>
             )}
           </div>
-        </nav>
-      </div>
+              </nav>
+            </div>
+          </>,
+          document.body
+        )}
     </header>
   )
 }

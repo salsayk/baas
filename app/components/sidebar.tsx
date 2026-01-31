@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { useState, useEffect, createContext, useContext } from "react";
@@ -383,23 +384,29 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile Overlay */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={close}
-          aria-hidden="true"
-        />
-      )}
-
-      {/* Mobile Sidebar */}
-      <aside
-        className={`fixed top-0 left-0 h-full w-72 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 flex flex-col z-50 lg:hidden transform transition-transform duration-300 ease-in-out shadow-xl ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <SidebarContent onNavClick={close} />
-      </aside>
+      {/* Mobile Overlay & Sidebar - rendered via portal with solid background */}
+      {typeof document !== "undefined" &&
+        createPortal(
+          <>
+            {isOpen && (
+              <div
+                className="fixed inset-0 z-[100] lg:hidden"
+                style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+                onClick={close}
+                aria-hidden="true"
+              />
+            )}
+            <aside
+              className={`fixed top-0 left-0 h-full w-72 border-r border-slate-200 flex flex-col z-[101] lg:hidden transform transition-transform duration-300 ease-in-out shadow-xl ${
+                isOpen ? "translate-x-0" : "-translate-x-full"
+              }`}
+              style={{ backgroundColor: "#ffffff" }}
+            >
+              <SidebarContent onNavClick={close} />
+            </aside>
+          </>,
+          document.body
+        )}
 
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex w-64 bg-white border-r border-slate-200 flex-col min-h-screen sticky top-0">
