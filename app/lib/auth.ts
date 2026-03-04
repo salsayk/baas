@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { supabase } from "./supabase";
+import { getDbClient } from "@/database/accounts/db-client";
 
 export interface AuthenticatedUser {
   id: string;
@@ -33,32 +33,36 @@ export async function getAuthenticatedUser(): Promise<AuthResult> {
       };
     }
 
-    // Find the user in Supabase by email
-    const { data: user, error } = await supabase
-      .from("users")
-      .select("id, email, name")
-      .eq("email", session.user.email)
-      .single();
-
-    if (error || !user) {
-      console.error("Error fetching user from Supabase:", error);
+    // Find the user in PostgreSQL by email
+    const client = getDbClient();
+    await client.connect();
+    try {
+      const res = await client.query(
+        'SELECT id, email, name FROM users WHERE email = $1',
+        [session.user.email]
+      );
+      const user = res.rows[0];
+      if (!user) {
+        console.error("User not found for email:", session.user.email);
+        return {
+          user: null,
+          error: NextResponse.json(
+            { error: "User not found. Please sign in again." },
+            { status: 401 }
+          ),
+        };
+      }
       return {
-        user: null,
-        error: NextResponse.json(
-          { error: "User not found. Please sign in again." },
-          { status: 401 }
-        ),
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+        },
+        error: null,
       };
+    } finally {
+      await client.end();
     }
-
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-      },
-      error: null,
-    };
   } catch (error) {
     console.error("Authentication error:", error);
     return {

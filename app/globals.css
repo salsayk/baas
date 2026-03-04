@@ -67,6 +67,17 @@
   }
 }
 
+/* RTL layout: when html has dir="rtl", put sidebar on the right (native CSS, no Tailwind variant) */
+html[dir="rtl"] .app-layout-with-sidebar {
+  flex-direction: row-reverse;
+}
+
+/* RTL sidebar border */
+html[dir="rtl"] .app-sidebar-desktop {
+  border-right: 0;
+  border-left: 1px solid var(--color-border, #e2e8f0);
+}
+
 @theme inline {
   --font-sans: "Geist", "Geist Fallback";
   --font-mono: "Geist Mono", "Geist Mono Fallback";

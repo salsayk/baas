@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { useState, useEffect, createContext, useContext } from "react";
+import { useLanguage } from "@/app/context/LanguageContext";
 
 // Sidebar context for mobile toggle
 interface SidebarContextType {
@@ -28,16 +29,27 @@ interface NavItem {
   icon: string;
   href: string;
   external?: boolean;
+  hidden?: boolean;
 }
 
-// Sidebar navigation items
+// Sidebar navigation items (hidden items still exist but are not rendered)
 const navItems: NavItem[] = [
-  { name: "Overview", icon: "home", href: "/dashboards" },
-  { name: "API Playground", icon: "code", href: "/playground" },
-  { name: "Use Cases", icon: "sparkles", href: "/use-cases" },
-  { name: "Billing", icon: "credit-card", href: "/billing" },
-  { name: "Documentation", icon: "file-text", href: "https://docs.example.com", external: true },
-  { name: "BAAS MCP", icon: "plug", href: "https://mcp.example.com", external: true },
+  { name: "Overview", icon: "home", href: "/dashboards", hidden: true },
+  { name: "Accounts", icon: "users", href: "/accounts" },
+  { name: "Service Offices", icon: "building", href: "/service-offices" },
+  { name: "Customers", icon: "users", href: "/customers" },
+  { name: "Subcontractors", icon: "users", href: "/subcontractors" },
+  { name: "Service Office Users", icon: "users", href: "/service-office-users" },
+  { name: "Projects", icon: "award", href: "/projects" },
+  { name: "System Lookups", icon: "list", href: "/system-lookups" },
+  { name: "Languages", icon: "globe", href: "/languages" },
+  { name: "Language Labels", icon: "file-text", href: "/language-labels" },
+  { name: "Screens", icon: "layout", href: "/screens" },
+  { name: "API Playground", icon: "code", href: "/playground", hidden: true },
+  { name: "Use Cases", icon: "sparkles", href: "/use-cases", hidden: true },
+  { name: "Billing", icon: "credit-card", href: "/billing", hidden: true },
+  { name: "Documentation", icon: "file-text", href: "https://docs.example.com", external: true, hidden: true },
+  { name: "Timese MCP", icon: "plug", href: "https://mcp.example.com", external: true, hidden: true },
 ];
 
 // Icon components
@@ -61,6 +73,29 @@ function NavIcon({ name, isActive }: { name: string; isActive?: boolean }) {
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
         <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
         <path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/>
+      </svg>
+    ),
+    users: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+    ),
+    building: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <rect width="16" height="20" x="4" y="2" rx="2" ry="2"/>
+        <path d="M9 22v-4h6v4"/>
+        <path d="M8 6h.01"/>
+        <path d="M16 6h.01"/>
+        <path d="M12 6h.01"/>
+        <path d="M12 10h.01"/>
+        <path d="M12 14h.01"/>
+        <path d="M16 10h.01"/>
+        <path d="M16 14h.01"/>
+        <path d="M8 10h.01"/>
+        <path d="M8 14h.01"/>
       </svg>
     ),
     "credit-card": (
@@ -98,6 +133,31 @@ function NavIcon({ name, isActive }: { name: string; isActive?: boolean }) {
         <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>
       </svg>
     ),
+    list: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M8 6h13"/>
+        <path d="M8 12h13"/>
+        <path d="M8 18h13"/>
+        <path d="M3 6h.01"/>
+        <path d="M3 12h.01"/>
+        <path d="M3 18h.01"/>
+      </svg>
+    ),
+    globe: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+        <path d="M2 12h20"/>
+      </svg>
+    ),
+    layout: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <rect width="7" height="9" x="3" y="3" rx="1"/>
+        <rect width="7" height="5" x="14" y="3" rx="1"/>
+        <rect width="7" height="9" x="14" y="12" rx="1"/>
+        <rect width="7" height="5" x="3" y="16" rx="1"/>
+      </svg>
+    ),
   };
   
   return icons[name] || null;
@@ -106,7 +166,7 @@ function NavIcon({ name, isActive }: { name: string; isActive?: boolean }) {
 // External link icon
 function ExternalLinkIcon() {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-auto text-slate-400">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ms-auto text-slate-400">
       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
       <polyline points="15 3 21 3 21 9"/>
       <line x1="10" x2="21" y1="14" y2="3"/>
@@ -126,21 +186,50 @@ function Logo() {
         </svg>
       </div>
       <span className="text-xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
-        BAAS
+        Timese
       </span>
     </Link>
+  );
+}
+
+// Language selector - uses LanguageContext and reads from database
+function LanguageSelector() {
+  const { languageId, languages, setLanguageId, mounted } = useLanguage();
+
+  // Show a placeholder that matches server render during hydration
+  if (!mounted) {
+    return (
+      <div className="mt-3 w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-400 h-[42px]">
+        Loading...
+      </div>
+    );
+  }
+
+  return (
+    <select
+      value={languageId}
+      onChange={(e) => setLanguageId(parseInt(e.target.value, 10))}
+      className="mt-3 w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+      aria-label="Language"
+    >
+      {languages.map((lang) => (
+        <option key={lang.id} value={lang.id}>
+          {lang.language_name}
+        </option>
+      ))}
+    </select>
   );
 }
 
 // Workspace selector component
 function WorkspaceSelector() {
   return (
-    <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-100 hover:border-violet-200 transition-colors">
+    <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gradient-to-r rtl:bg-gradient-to-l from-violet-50 to-purple-50 border border-violet-100 hover:border-violet-200 transition-colors">
       <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
         P
       </div>
       <span className="text-sm font-medium text-slate-700">Personal</span>
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-auto text-slate-400">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ms-auto text-slate-400">
         <path d="m6 9 6 6 6-6"/>
       </svg>
     </button>
@@ -151,7 +240,7 @@ function WorkspaceSelector() {
 function NavItemLink({ item, isActive, onClick }: { item: NavItem; isActive: boolean; onClick?: () => void }) {
   const linkClass = `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
     isActive
-      ? "bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-100"
+      ? "bg-gradient-to-r rtl:bg-gradient-to-l from-blue-50 to-indigo-50 text-blue-700 border border-blue-100"
       : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
   }`;
 
@@ -266,9 +355,10 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
 
   return (
     <>
-      {/* Logo */}
+      {/* Logo and language */}
       <div className="p-4 lg:p-6 border-b border-slate-100">
         <Logo />
+        <LanguageSelector />
       </div>
 
       {/* Workspace Selector */}
@@ -279,7 +369,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
       {/* Navigation */}
       <nav className="flex-1 px-3 lg:px-4 py-2 overflow-y-auto">
         <ul className="space-y-1">
-          {navItems.map((item) => {
+          {navItems.filter((item) => !item.hidden).map((item) => {
             const isActive = item.external ? false : pathname === item.href;
             return (
               <li key={item.name}>
@@ -381,11 +471,39 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
 // Main Sidebar component
 export function Sidebar() {
   const { isOpen, close } = useSidebar();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Check RTL from document direction (set by LanguageContext)
+  const [isRtl, setIsRtl] = useState(false);
+  
+  useEffect(() => {
+    if (!mounted) return;
+    
+    // Initial check
+    setIsRtl(document.documentElement.dir === "rtl");
+    
+    // Watch for changes to the dir attribute
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === "dir") {
+          setIsRtl(document.documentElement.dir === "rtl");
+        }
+      });
+    });
+    
+    observer.observe(document.documentElement, { attributes: true });
+    
+    return () => observer.disconnect();
+  }, [mounted]);
 
   return (
     <>
       {/* Mobile Overlay & Sidebar - rendered via portal with solid background */}
-      {typeof document !== "undefined" &&
+      {mounted &&
         createPortal(
           <>
             {isOpen && (
@@ -397,8 +515,14 @@ export function Sidebar() {
               />
             )}
             <aside
-              className={`fixed top-0 left-0 h-full w-72 border-r border-slate-200 flex flex-col z-[101] lg:hidden transform transition-transform duration-300 ease-in-out shadow-xl ${
-                isOpen ? "translate-x-0" : "-translate-x-full"
+              className={`fixed top-0 h-full w-72 flex flex-col z-[101] lg:hidden transform transition-transform duration-300 ease-in-out shadow-xl ${
+                isRtl ? "right-0 border-l border-slate-200" : "left-0 border-r border-slate-200"
+              } ${
+                isOpen
+                  ? "translate-x-0"
+                  : isRtl
+                  ? "translate-x-full"
+                  : "-translate-x-full"
               }`}
               style={{ backgroundColor: "#ffffff" }}
             >
@@ -409,7 +533,11 @@ export function Sidebar() {
         )}
 
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex w-64 bg-white border-r border-slate-200 flex-col min-h-screen sticky top-0">
+      <aside
+        className={`app-sidebar-desktop hidden lg:flex w-64 bg-white flex-col min-h-screen sticky top-0 border-r border-slate-200 ${
+          isRtl ? "lg:order-last" : "lg:order-first"
+        }`}
+      >
         <SidebarContent />
       </aside>
     </>

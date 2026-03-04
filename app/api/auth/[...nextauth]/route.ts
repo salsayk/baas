@@ -1,6 +1,6 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-import { supabase } from "@/app/lib/supabase";
+import { getDbClient } from "@/database/accounts/db-client";
 
 // Validate required environment variables
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
@@ -28,52 +28,44 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
-      // Save or update user in Supabase on every sign in
+      // Save or update user in PostgreSQL on every sign in
       if (account && user.email) {
         try {
           const googleProfile = profile as { picture?: string };
-          
-          // Check if user already exists
-          const { data: existingUser } = await supabase
-            .from("users")
-            .select("id")
-            .eq("email", user.email)
-            .single();
-
-          if (existingUser) {
-            // Update existing user's last login and profile info
-            await supabase
-              .from("users")
-              .update({
-                name: user.name,
-                image: googleProfile?.picture || user.image,
-                last_login_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              })
-              .eq("email", user.email);
-            
-            console.log("Updated existing user:", user.email);
-          } else {
-            // Create new user
-            const { error } = await supabase.from("users").insert({
-              email: user.email,
-              name: user.name,
-              image: googleProfile?.picture || user.image,
-              provider: account.provider,
-              provider_account_id: account.providerAccountId,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              last_login_at: new Date().toISOString(),
-            });
-
-            if (error) {
-              console.error("Error creating user in Supabase:", error);
+          const client = getDbClient();
+          await client.connect();
+          try {
+            const existing = await client.query(
+              "SELECT id FROM users WHERE email = $1",
+              [user.email]
+            );
+            const now = new Date().toISOString();
+            if (existing.rows.length > 0) {
+              await client.query(
+                `UPDATE users SET name = $1, image = $2, last_login_at = $3, updated_at = $3 WHERE email = $4`,
+                [user.name ?? null, (googleProfile?.picture || user.image) ?? null, now, user.email]
+              );
+              console.log("Updated existing user:", user.email);
             } else {
+              await client.query(
+                `INSERT INTO users (email, name, image, provider, provider_account_id, created_at, updated_at, last_login_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $6, $6)`,
+                [
+                  user.email,
+                  user.name ?? null,
+                  (googleProfile?.picture || user.image) ?? null,
+                  account.provider,
+                  account.providerAccountId ?? null,
+                  now,
+                ]
+              );
               console.log("Created new user:", user.email);
             }
+          } finally {
+            await client.end();
           }
         } catch (error) {
-          console.error("Error saving user to Supabase:", error);
+          console.error("Error saving user to PostgreSQL:", error);
           // Don't block sign in if database save fails
         }
       }

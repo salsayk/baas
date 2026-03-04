@@ -1,50 +1,37 @@
-import { NextResponse } from 'next/server';
-import { supabase, CreateApiKeyInput } from '@/app/lib/supabase';
-import { getAuthenticatedUser } from '@/app/lib/auth';
-
-// Check if Supabase is properly configured
-function isSupabaseConfigured(): boolean {
-  return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-}
+import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/app/lib/auth";
+import { getDbClient } from "@/database/accounts/db-client";
+import type { CreateApiKeyInput } from "@/database/api_keys/types";
 
 // GET - Fetch all API keys for the authenticated user
 export async function GET() {
   try {
-    // Check configuration first
-    if (!isSupabaseConfigured()) {
-      console.error('Supabase is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your .env.local file.');
-      return NextResponse.json(
-        { error: 'Database not configured. Please check your environment variables.' },
-        { status: 503 }
-      );
-    }
-
-    // Verify authentication and get user
     const { user, error: authError } = await getAuthenticatedUser();
     if (authError) return authError;
     if (!user) {
       return NextResponse.json(
-        { error: 'Unauthorized. Please sign in to access this resource.' },
+        { error: "Unauthorized. Please sign in to access this resource." },
         { status: 401 }
       );
     }
 
-    // Fetch only the API keys belonging to this user
-    const { data, error } = await supabase
-      .from('api_keys')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Supabase error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    const client = getDbClient();
+    await client.connect();
+    try {
+      const res = await client.query(
+        `SELECT id, user_id, name, key, type, usage, "limit", created_at
+         FROM api_keys
+         WHERE user_id = $1
+         ORDER BY created_at DESC`,
+        [user.id]
+      );
+      return NextResponse.json(res.rows);
+    } finally {
+      await client.end();
     }
-
-    return NextResponse.json(data || []);
-  } catch (error) {
-    console.error('Server error:', error);
-    const message = error instanceof Error ? error.message : 'Internal server error';
+  } catch (err) {
+    console.error("API keys GET error:", err);
+    const message = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -52,20 +39,11 @@ export async function GET() {
 // POST - Create a new API key for the authenticated user
 export async function POST(request: Request) {
   try {
-    // Check configuration first
-    if (!isSupabaseConfigured()) {
-      return NextResponse.json(
-        { error: 'Database not configured. Please check your environment variables.' },
-        { status: 503 }
-      );
-    }
-
-    // Verify authentication and get user
     const { user, error: authError } = await getAuthenticatedUser();
     if (authError) return authError;
     if (!user) {
       return NextResponse.json(
-        { error: 'Unauthorized. Please sign in to access this resource.' },
+        { error: "Unauthorized. Please sign in to access this resource." },
         { status: 401 }
       );
     }
@@ -74,35 +52,37 @@ export async function POST(request: Request) {
 
     if (!body.name || !body.key || !body.type) {
       return NextResponse.json(
-        { error: 'Missing required fields: name, key, type' },
+        { error: "Missing required fields: name, key, type" },
         { status: 400 }
       );
     }
 
-    // Create the API key with the user's ID
-    // Default limit is 1000 if not specified
-    const { data, error } = await supabase
-      .from('api_keys')
-      .insert({
-        user_id: user.id,
-        name: body.name,
-        key: body.key,
-        type: body.type,
-        usage: 0,
-        limit: body.limit ?? 1000,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Supabase error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    const limit = body.limit ?? 1000;
+    const client = getDbClient();
+    await client.connect();
+    try {
+      const res = await client.query(
+        `INSERT INTO api_keys (user_id, name, key, type, usage, "limit")
+         VALUES ($1, $2, $3, $4, 0, $5)
+         RETURNING id, user_id, name, key, type, usage, "limit", created_at`,
+        [user.id, body.name, body.key.trim(), body.type, limit]
+      );
+      return NextResponse.json(res.rows[0], { status: 201 });
+    } catch (err: unknown) {
+      const pgErr = err as { code?: string };
+      if (pgErr?.code === "23505") {
+        return NextResponse.json(
+          { error: "An API key with this value already exists." },
+          { status: 400 }
+        );
+      }
+      throw err;
+    } finally {
+      await client.end();
     }
-
-    return NextResponse.json(data, { status: 201 });
-  } catch (error) {
-    console.error('Server error:', error);
-    const message = error instanceof Error ? error.message : 'Internal server error';
+  } catch (err) {
+    console.error("API keys POST error:", err);
+    const message = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

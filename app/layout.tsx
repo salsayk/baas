@@ -3,6 +3,9 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { getServerSession } from "next-auth";
 import "./globals.css";
 import { AuthProvider } from "./context/AuthContext";
+import { LanguageProvider } from "./context/LanguageContext";
+import { TranslationProvider } from "./context/TranslationContext";
+import { AutoTranslate } from "./components/AutoTranslate";
 import { authOptions } from "./api/auth/[...nextauth]/route";
 
 const geistSans = Geist({
@@ -16,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "BAAS - Bill Management for SMBs",
+  title: "Timese - Bill Management for SMBs",
   description: "Manage bills for SMBs",
 };
 
@@ -37,7 +40,12 @@ export default async function RootLayout({
         suppressHydrationWarning
       >
         <AuthProvider session={session}>
-          {children}
+          <LanguageProvider>
+            <TranslationProvider>
+              <AutoTranslate />
+              {children}
+            </TranslationProvider>
+          </LanguageProvider>
         </AuthProvider>
       </body>
     </html>

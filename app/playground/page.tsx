@@ -40,7 +40,7 @@ function PlaygroundContent() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="app-layout-with-sidebar min-h-screen bg-slate-50 flex flex-row">
       <Sidebar />
 
       <main className="flex-1 flex flex-col min-w-0">

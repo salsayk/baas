@@ -89,7 +89,7 @@ export function NotificationContainer({
   onDismiss: (id: string) => void;
 }) {
   return (
-    <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-3">
+    <div className="fixed bottom-6 end-6 z-[100] flex flex-col gap-3">
       {notifications.map((notification) => (
         <div
           key={notification.id}
@@ -99,7 +99,7 @@ export function NotificationContainer({
           <span className="text-sm font-medium">{notification.message}</span>
           <button
             onClick={() => onDismiss(notification.id)}
-            className="ml-2 opacity-70 hover:opacity-100 transition-opacity"
+            className="ms-2 opacity-70 hover:opacity-100 transition-opacity"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"/>

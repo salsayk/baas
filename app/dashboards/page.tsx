@@ -397,7 +397,7 @@ function DashboardContent() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="app-layout-with-sidebar min-h-screen bg-slate-50 flex flex-row">
       <Sidebar />
 
       <main className="flex-1 flex flex-col min-w-0">
@@ -579,11 +579,11 @@ function DashboardContent() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-slate-100">
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Name</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Type</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider min-w-[180px]">Usage / Limit</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Key</th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">Options</th>
+                    <th className="px-6 py-4 text-start text-xs font-semibold text-slate-400 uppercase tracking-wider">Name</th>
+                    <th className="px-6 py-4 text-start text-xs font-semibold text-slate-400 uppercase tracking-wider">Type</th>
+                    <th className="px-6 py-4 text-start text-xs font-semibold text-slate-400 uppercase tracking-wider min-w-[180px]">Usage / Limit</th>
+                    <th className="px-6 py-4 text-start text-xs font-semibold text-slate-400 uppercase tracking-wider">Key</th>
+                    <th className="px-6 py-4 text-end text-xs font-semibold text-slate-400 uppercase tracking-wider">Options</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -683,7 +683,7 @@ function DashboardContent() {
                               </svg>
                             </button>
                             {deleteConfirm === apiKey.id ? (
-                              <div className="flex items-center gap-1 ml-1">
+                              <div className="flex items-center gap-1 ms-1">
                                 <button
                                   onClick={() => handleDeleteKey(apiKey.id)}
                                   className="px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-600 hover:bg-red-200 transition-colors"

@@ -10,7 +10,7 @@ export function Footer() {
           <div className="col-span-2 sm:col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-4">
               <GithubIcon className="h-6 w-6 text-primary" />
-              <span className="text-lg font-bold">BAAS</span>
+              <span className="text-lg font-bold">Timese</span>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">
               Deep insights for open source GitHub repositories.
@@ -97,7 +97,7 @@ export function Footer() {
         <div className="mt-8 lg:mt-12 pt-6 lg:pt-8 border-t border-border">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <p className="text-sm text-muted-foreground Danditext-center sm:text-left">
-              © {new Date().getFullYear()} BAAS bill management for SMBs. All rights reserved.
+              © {new Date().getFullYear()} Timese bill management for SMBs. All rights reserved.
             </p>
             <div className="flex gap-4 sm:gap-6">
               <Link href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">

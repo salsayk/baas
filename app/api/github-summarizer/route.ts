@@ -1,12 +1,7 @@
-import { NextResponse } from 'next/server';
-import { supabase } from '@/app/lib/supabase';
-import { generateSummary } from './chain';
-import { parseGitHubUrl, fetchAllRepoData } from '@/app/lib/githubUtils';
-
-// Check if Supabase is properly configured
-function isSupabaseConfigured(): boolean {
-  return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-}
+import { NextResponse } from "next/server";
+import { getDbClient } from "@/database/accounts/db-client";
+import { generateSummary } from "./chain";
+import { parseGitHubUrl, fetchAllRepoData } from "@/app/lib/githubUtils";
 
 // Calculate language percentages from bytes
 function calculateLanguagePercentages(languages: Record<string, number>): { name: string; percentage: number; bytes: number }[] {
@@ -30,78 +25,60 @@ interface ApiKeyValidationResult {
   keyId?: string;
 }
 
-// Validate API key from request headers and check usage limits
+// Validate API key from request headers and check usage limits (PostgreSQL)
 async function validateApiKeyAndCheckLimit(request: Request): Promise<ApiKeyValidationResult> {
-  // Extract the API key from x-api-key header
-  const apiKey = request.headers.get('x-api-key');
-
+  const apiKey = request.headers.get("x-api-key");
   if (!apiKey) {
-    return { valid: false, error: 'Missing API key. Please provide x-api-key header.', statusCode: 401 };
+    return { valid: false, error: "Missing API key. Please provide x-api-key header.", statusCode: 401 };
   }
 
-  // Check if the API key exists in the database and get usage info
-  const { data, error } = await supabase
-    .from('api_keys')
-    .select('id, name, type, usage, limit')
-    .eq('key', apiKey)
-    .single();
-
-  if (error || !data) {
-    return { valid: false, error: 'Invalid API key', statusCode: 401 };
+  const client = getDbClient();
+  await client.connect();
+  try {
+    const res = await client.query(
+      `SELECT id, usage, "limit" FROM api_keys WHERE key = $1`,
+      [apiKey.trim()]
+    );
+    if (res.rows.length === 0) {
+      return { valid: false, error: "Invalid API key", statusCode: 401 };
+    }
+    const row = res.rows[0];
+    const usage = Number(row.usage);
+    const limitVal = Number(row.limit);
+    if (usage >= limitVal) {
+      return {
+        valid: false,
+        error: `Rate limit exceeded. You have used ${usage}/${limitVal} requests. Please upgrade your plan or wait for your limit to reset.`,
+        statusCode: 429,
+      };
+    }
+    return { valid: true, keyId: row.id };
+  } finally {
+    await client.end();
   }
-
-  // Check if usage has exceeded the limit
-  if (data.usage >= data.limit) {
-    return { 
-      valid: false, 
-      error: `Rate limit exceeded. You have used ${data.usage}/${data.limit} requests. Please upgrade your plan or wait for your limit to reset.`,
-      statusCode: 429 
-    };
-  }
-
-  return { valid: true, keyId: data.id };
 }
 
-// Increment usage count for an API key
+// Increment usage count for an API key (PostgreSQL)
 async function incrementApiKeyUsage(keyId: string): Promise<boolean> {
-  const { error } = await supabase.rpc('increment_api_key_usage', { key_id: keyId });
-  
-  // Fallback if RPC doesn't exist - use regular update
-  if (error) {
-    const { data: currentKey } = await supabase
-      .from('api_keys')
-      .select('usage')
-      .eq('id', keyId)
-      .single();
-
-    if (currentKey) {
-      const { error: updateError } = await supabase
-        .from('api_keys')
-        .update({ usage: currentKey.usage + 1 })
-        .eq('id', keyId);
-      
-      if (updateError) {
-        console.error('Error incrementing usage:', updateError);
-        return false;
-      }
-    }
+  const client = getDbClient();
+  await client.connect();
+  try {
+    await client.query(
+      `UPDATE api_keys SET usage = usage + 1 WHERE id = $1`,
+      [keyId]
+    );
+    return true;
+  } catch (err) {
+    console.error("Error incrementing usage:", err);
+    return false;
+  } finally {
+    await client.end();
   }
-  
-  return true;
 }
 
 // GET - GitHub Summarizer endpoint
 export async function GET(request: Request) {
   try {
-    // Check configuration first
-    if (!isSupabaseConfigured()) {
-      console.error('Supabase is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your .env.local file.');
-      return NextResponse.json(
-        { error: 'Database not configured. Please check your environment variables.' },
-        { status: 503 }
-      );
-    }
-
     // Validate API key and check limits
     const validation = await validateApiKeyAndCheckLimit(request);
     if (!validation.valid) {
@@ -125,14 +102,6 @@ export async function GET(request: Request) {
 // POST - Summarize GitHub repository
 export async function POST(request: Request) {
   try {
-    // Check configuration first
-    if (!isSupabaseConfigured()) {
-      return NextResponse.json(
-        { error: 'Database not configured. Please check your environment variables.' },
-        { status: 503 }
-      );
-    }
-
     // Validate API key and check limits
     const validation = await validateApiKeyAndCheckLimit(request);
     if (!validation.valid) {
