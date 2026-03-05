@@ -5,7 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { NotificationContainer, useNotifications } from "@/app/components/notifications";
 import { Sidebar, SidebarProvider, MobileMenuButton } from "@/app/components/sidebar";
 import { ServiceOfficeUserModal } from "@/database/service_office_users/ServiceOfficeUserModal";
-import type { CreateServiceOfficeUserInput, ServiceOfficeUser } from "@/database/service_office_users/types";
+import type {
+  CreateServiceOfficeUserInput,
+  ServiceOfficeUser,
+  ServiceOfficeUserFormState,
+} from "@/database/service_office_users/types";
 import type { ServiceOffice } from "@/database/Service_Offices/types";
 
 const STATUS_LABELS: Record<number, string> = {
@@ -37,7 +41,7 @@ function ServiceOfficeUsersContent() {
   const [users, setUsers] = useState<ServiceOfficeUser[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<ServiceOfficeUser | null>(null);
-  const [form, setForm] = useState<CreateServiceOfficeUserInput & { status: number }>(defaultForm);
+  const [form, setForm] = useState<ServiceOfficeUserFormState>(defaultForm);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [isLoadingOffices, setIsLoadingOffices] = useState(true);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
@@ -167,7 +171,7 @@ function ServiceOfficeUsersContent() {
           body: JSON.stringify({
             user_name: form.user_name,
             user_type: form.user_type,
-            user_professional_grade: form.user_professional_grade,
+            user_professional_grade: form.user_professional_grade!,
             subcontractor_id: form.subcontractor_id,
             mobile_phone: form.mobile_phone,
             secondary_phone: form.secondary_phone,
@@ -188,7 +192,10 @@ function ServiceOfficeUsersContent() {
         const res = await fetch("/api/service-office-users", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify({
+            ...form,
+            user_professional_grade: form.user_professional_grade!,
+          }),
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));

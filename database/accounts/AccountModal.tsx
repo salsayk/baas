@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "@/app/context/TranslationContext";
 import type { Account, CreateAccountInput } from "@/database/accounts/types";
 
 const STATUS_LABELS: Record<number, string> = {
@@ -16,6 +17,8 @@ interface AccountModalProps {
   onClose: () => void;
   onSave: () => void;
   onChange: (updates: Partial<CreateAccountInput & { status: number }>) => void;
+  /** When true, render form content only (no modal overlay, no action buttons). Used in wizards. */
+  embedded?: boolean;
 }
 
 export function AccountModal({
@@ -26,11 +29,14 @@ export function AccountModal({
   onClose,
   onSave,
   onChange,
+  embedded = false,
 }: AccountModalProps) {
+  const { t } = useTranslations();
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (embedded) return;
     onSave();
   };
 
@@ -42,34 +48,16 @@ export function AccountModal({
     });
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <div className="relative w-full sm:max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-auto">
-        <div className="sticky top-0 bg-white p-6 border-b border-slate-100 rounded-t-2xl sm:rounded-t-2xl z-10">
-          <h2 className="text-xl font-bold text-slate-900">
-            {editingAccount ? "Edit Account" : "Add New Account"}
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {editingAccount
-              ? "Update the account details below"
-              : "Fill in the details to create a new account"}
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+  const formContent = (
+    <form onSubmit={handleSubmit} className={embedded ? "space-y-6" : "p-6 space-y-6"}>
           {/* Basic Info Section */}
           <section className="space-y-4">
             <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">
-              Basic Information
+              {t("Basic Information")}
             </h3>
             <div>
               <label htmlFor="account_name" className="block text-sm font-medium text-slate-700 mb-2">
-                Account Name <span className="text-red-500">*</span>
+                {t("Account Name")} <span className="text-red-500">*</span>
               </label>
               <input
                 id="account_name"
@@ -108,7 +96,7 @@ export function AccountModal({
               </div>
               <div>
                 <label htmlFor="secondary_phone" className="block text-sm font-medium text-slate-700 mb-2">
-                  Secondary Phone
+                  {t("Secondary Phone")}
                 </label>
                 <input
                   id="secondary_phone"
@@ -124,7 +112,7 @@ export function AccountModal({
             </div>
             <div>
               <label htmlFor="email_address" className="block text-sm font-medium text-slate-700 mb-2">
-                Email Address
+                Email Address <span className="text-red-500">*</span>
               </label>
               <input
                 id="email_address"
@@ -142,11 +130,11 @@ export function AccountModal({
           {/* Credit Card Section */}
           <section className="space-y-4">
             <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">
-              Credit Card Information
+              {t("Credit Card Information")}
             </h3>
             <div className="p-4 rounded-xl bg-amber-50/50 border border-amber-100">
               <p className="text-xs text-amber-800 mb-4">
-                Store card data securely. In production, use a payment processor.
+                {t("Store card data securely. In production, use a payment processor.")}
               </p>
               <div className="space-y-4">
                 <div>
@@ -166,7 +154,7 @@ export function AccountModal({
                 </div>
                 <div>
                   <label htmlFor="card_number" className="block text-sm font-medium text-slate-700 mb-2">
-                    Card Number
+                    {t("Card Number")}
                   </label>
                   <input
                     id="card_number"
@@ -206,7 +194,7 @@ export function AccountModal({
                   </div>
                   <div>
                     <label htmlFor="card_expiry_year" className="block text-sm font-medium text-slate-700 mb-2">
-                      Expiry Year
+                      {t("Expiry Year")}
                     </label>
                     <select
                       id="card_expiry_year"
@@ -257,9 +245,9 @@ export function AccountModal({
           </section>
 
           {/* Status Section */}
-          <section>
+          <section id="account_status" tabIndex={-1}>
             <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2 mb-4">
-              Status
+              {t("Status")}
             </h3>
             <div className="flex gap-3">
               {([1, 2] as const).map((s) => (
@@ -282,28 +270,52 @@ export function AccountModal({
             </div>
           </section>
 
-          {/* Actions */}
-          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 pt-4 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSaving}
-              className="px-5 py-3 sm:py-2.5 rounded-xl text-slate-600 font-medium hover:bg-slate-100 transition-colors disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!form.account_name?.trim() || isSaving}
-              className="px-5 py-3 sm:py-2.5 rounded-xl bg-violet-600 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-violet-700 transition-colors flex items-center justify-center gap-2"
-            >
-              {isSaving && (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              )}
-              {editingAccount ? "Update Account" : "Create Account"}
-            </button>
-          </div>
+          {!embedded && (
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSaving}
+                className="px-5 py-3 sm:py-2.5 rounded-xl text-slate-600 font-medium hover:bg-slate-100 transition-colors disabled:opacity-50"
+              >
+                {t("Cancel")}
+              </button>
+              <button
+                type="submit"
+                disabled={!form.account_name?.trim() || isSaving}
+                className="px-5 py-3 sm:py-2.5 rounded-xl bg-violet-600 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-violet-700 transition-colors flex items-center justify-center gap-2"
+              >
+                {isSaving && (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                )}
+                {editingAccount ? "Update Account" : "Create Account"}
+              </button>
+            </div>
+          )}
         </form>
+  );
+
+  if (embedded) return formContent;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div className="relative w-full sm:max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-auto">
+        <div className="sticky top-0 bg-white p-6 border-b border-slate-100 rounded-t-2xl sm:rounded-t-2xl z-10">
+          <h2 className="text-xl font-bold text-slate-900">
+            {editingAccount ? t("Edit Account") : t("Add New Account")}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {editingAccount
+              ? t("Update the account details below")
+              : t("Fill in the details to create a new account")}
+          </p>
+        </div>
+        {formContent}
       </div>
     </div>
   );

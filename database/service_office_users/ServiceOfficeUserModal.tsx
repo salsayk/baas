@@ -2,9 +2,14 @@
 
 import { useEffect, useCallback, useState } from "react";
 import { useLanguage } from "@/app/context/LanguageContext";
+import { useTranslations } from "@/app/context/TranslationContext";
 import { SubcontractorModal } from "@/database/subcontractors/SubcontractorModal";
 import type { CreateSubcontractorInput } from "@/database/subcontractors/types";
-import type { CreateServiceOfficeUserInput, ServiceOfficeUser } from "@/database/service_office_users/types";
+import type {
+  CreateServiceOfficeUserInput,
+  ServiceOfficeUser,
+  ServiceOfficeUserFormState,
+} from "@/database/service_office_users/types";
 
 const STATUS_LABELS: Record<number, string> = {
   1: "Active",
@@ -51,8 +56,14 @@ interface ServiceOfficeUserModalProps {
   fixedServiceOfficeId?: number | null;
   onClose: () => void;
   onSave: () => void;
-  onChange: (updates: Partial<CreateServiceOfficeUserInput & { status: number }>) => void;
+  onChange: (updates: Partial<ServiceOfficeUserFormState>) => void;
   onSubcontractorAdded?: (sub: SubcontractorOption) => void;
+  /** When true, render form content only (no modal overlay, no action buttons). Used in wizards. */
+  embedded?: boolean;
+  /** When set (e.g. in wizard), service office is fixed and shown as read-only. ID injected on save. */
+  fixedServiceOfficeName?: string;
+  /** When set, user type is fixed (e.g. Service office supervisor). */
+  fixedUserTypeValueId?: number;
 }
 
 export function ServiceOfficeUserModal({
@@ -67,8 +78,12 @@ export function ServiceOfficeUserModal({
   onSave,
   onChange,
   onSubcontractorAdded,
+  embedded = false,
+  fixedServiceOfficeName,
+  fixedUserTypeValueId,
 }: ServiceOfficeUserModalProps) {
   const { languageId } = useLanguage();
+  const { t } = useTranslations();
   const [userTypes, setUserTypes] = useState<LookupValue[]>([]);
   const [professionalGrades, setProfessionalGrades] = useState<LookupValue[]>([]);
   const [isAddSubcontractorOpen, setIsAddSubcontractorOpen] = useState(false);
@@ -151,28 +166,20 @@ export function ServiceOfficeUserModal({
     }
   };
 
-  const serviceOfficeFixed = fixedServiceOfficeId != null && fixedServiceOfficeId > 0;
+  const serviceOfficeFixed =
+    (fixedServiceOfficeId != null && fixedServiceOfficeId > 0) ||
+    (!!fixedServiceOfficeName && fixedServiceOfficeName.trim() !== "");
   const subcontractorRequired = form.user_type === SUBCONTRACTOR_USER_TYPE_VALUE_ID;
+  const userTypeFixed = fixedUserTypeValueId != null && fixedUserTypeValueId > 0;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (embedded) return;
     onSave();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
-      <div className="relative w-full sm:max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-auto">
-        <div className="sticky top-0 bg-white p-6 border-b border-slate-100 rounded-t-2xl sm:rounded-t-2xl z-10">
-          <h2 className="text-xl font-bold text-slate-900">
-            {editingUser ? "Edit Service Office User" : "Add Service Office User"}
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {editingUser ? "Update user details" : "Fill in details for the new user"}
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+  const formContent = (
+    <form onSubmit={handleSubmit} className={embedded ? "space-y-5" : "p-6 space-y-5"}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <label htmlFor="user_name" className="block text-sm font-medium text-slate-700 mb-2">
@@ -192,23 +199,32 @@ export function ServiceOfficeUserModal({
 
             <div>
               <label htmlFor="user_type" className="block text-sm font-medium text-slate-700 mb-2">
-                User Type <span className="text-red-500">*</span>
+                {t("User Type")} <span className="text-red-500">*</span>
               </label>
-              <select
-                id="user_type"
-                value={form.user_type ?? ""}
-                onChange={(e) => handleUserTypeChange(e.target.value ? parseInt(e.target.value, 10) : 0)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900"
-                required
-                disabled={isSaving}
-              >
-                <option value="">Select user type</option>
-                {userTypes.map((v) => (
-                  <option key={v.value_id} value={v.value_id}>
-                    {v.value_name}
-                  </option>
-                ))}
-              </select>
+              {userTypeFixed ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-slate-900 font-medium">
+                    {userTypes.find((v) => v.value_id === fixedUserTypeValueId)?.value_name ??
+                      "Service office supervisor"}
+                  </p>
+                </div>
+              ) : (
+                <select
+                  id="user_type"
+                  value={form.user_type ?? ""}
+                  onChange={(e) => handleUserTypeChange(e.target.value ? parseInt(e.target.value, 10) : 0)}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900"
+                  required
+                  disabled={isSaving}
+                >
+                  <option value="">{t("Select user type")}</option>
+                  {userTypes.map((v) => (
+                    <option key={v.value_id} value={v.value_id}>
+                      {v.value_name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div>
@@ -219,13 +235,15 @@ export function ServiceOfficeUserModal({
                 id="user_professional_grade"
                 value={form.user_professional_grade ?? ""}
                 onChange={(e) =>
-                  onChange({ user_professional_grade: e.target.value ? parseInt(e.target.value, 10) : 0 })
+                  onChange({
+                    user_professional_grade: e.target.value ? parseInt(e.target.value, 10) : null,
+                  })
                 }
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900"
                 required
                 disabled={isSaving}
               >
-                <option value="">Select grade</option>
+                <option value="">{t("Select grade")}</option>
                 {professionalGrades.map((v) => (
                   <option key={v.value_id} value={v.value_id}>
                     {v.value_name}
@@ -238,21 +256,27 @@ export function ServiceOfficeUserModal({
               <label htmlFor="service_office_id" className="block text-sm font-medium text-slate-700 mb-2">
                 Service Office <span className="text-red-500">*</span>
               </label>
-              <select
-                id="service_office_id"
-                value={form.service_office_id && form.service_office_id > 0 ? form.service_office_id : ""}
-                onChange={(e) => onChange({ service_office_id: e.target.value ? parseInt(e.target.value, 10) : 0 })}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900"
-                disabled={isSaving || serviceOfficeFixed || !!editingUser}
-                required
-              >
-                <option value="">Select service office</option>
-                {serviceOffices.map((s) => (
-                  <option key={s.service_office_id} value={s.service_office_id}>
-                    {s.service_office_name}
-                  </option>
-                ))}
-              </select>
+              {serviceOfficeFixed && fixedServiceOfficeName ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-slate-900 font-medium">{fixedServiceOfficeName}</p>
+                </div>
+              ) : (
+                <select
+                  id="service_office_id"
+                  value={form.service_office_id && form.service_office_id > 0 ? form.service_office_id : ""}
+                  onChange={(e) => onChange({ service_office_id: e.target.value ? parseInt(e.target.value, 10) : 0 })}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900"
+                  disabled={isSaving || serviceOfficeFixed || !!editingUser}
+                  required
+                >
+                  <option value="">{t("Select service office")}</option>
+                  {serviceOffices.map((s) => (
+                    <option key={s.service_office_id} value={s.service_office_id}>
+                      {s.service_office_name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div className="sm:col-span-2">
@@ -270,7 +294,7 @@ export function ServiceOfficeUserModal({
                   required={subcontractorRequired}
                   disabled={isSaving || !subcontractorRequired}
                 >
-                  <option value="">— Select subcontractor —</option>
+                  <option value="">{t("— Select subcontractor —")}</option>
                   {subcontractors.map((s) => (
                     <option key={s.subcontractor_id} value={s.subcontractor_id}>
                       {s.subcontractor_name}
@@ -291,7 +315,7 @@ export function ServiceOfficeUserModal({
               </div>
               {subcontractorRequired && subcontractors.length === 0 && (
                 <p className="mt-1 text-xs text-amber-600">
-                  No subcontractors yet. Click the + button to add one.
+                  {t("No subcontractors yet. Click the + button to add one.")}
                 </p>
               )}
             </div>
@@ -314,7 +338,7 @@ export function ServiceOfficeUserModal({
 
             <div>
               <label htmlFor="secondary_phone" className="block text-sm font-medium text-slate-700 mb-2">
-                Secondary Phone
+                {t("Secondary Phone")}
               </label>
               <input
                 id="secondary_phone"
@@ -344,8 +368,8 @@ export function ServiceOfficeUserModal({
             </div>
           </div>
 
-          <div>
-            <h3 className="text-sm font-semibold text-slate-700 mb-2">Status</h3>
+          <div id="user_status" tabIndex={-1}>
+            <h3 className="text-sm font-semibold text-slate-700 mb-2">{t("Status")}</h3>
             <div className="flex gap-3">
               {([1, 2, 3] as const).map((s) => (
                 <button
@@ -365,33 +389,52 @@ export function ServiceOfficeUserModal({
             </div>
           </div>
 
-          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 pt-4 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSaving}
-              className="px-5 py-3 sm:py-2.5 rounded-xl text-slate-600 font-medium hover:bg-slate-100"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={
-                !form.user_name?.trim() ||
-                form.user_type == null ||
-                form.user_professional_grade == null ||
-                !form.service_office_id ||
-                !form.mobile_phone?.trim() ||
-                !form.email_address?.trim() ||
-                (form.user_type === SUBCONTRACTOR_USER_TYPE_VALUE_ID && !form.subcontractor_id) ||
-                isSaving
-              }
-              className="px-5 py-3 sm:py-2.5 rounded-xl bg-violet-600 text-white font-medium disabled:opacity-50"
-            >
-              {editingUser ? "Update" : "Create"}
-            </button>
-          </div>
+          {!embedded && (
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSaving}
+                className="px-5 py-3 sm:py-2.5 rounded-xl text-slate-600 font-medium hover:bg-slate-100"
+              >
+                {t("Cancel")}
+              </button>
+              <button
+                type="submit"
+                disabled={
+                  !form.user_name?.trim() ||
+                  form.user_type == null ||
+                  form.user_professional_grade == null ||
+                  !form.service_office_id ||
+                  !form.mobile_phone?.trim() ||
+                  !form.email_address?.trim() ||
+                  (form.user_type === SUBCONTRACTOR_USER_TYPE_VALUE_ID && !form.subcontractor_id) ||
+                  isSaving
+                }
+                className="px-5 py-3 sm:py-2.5 rounded-xl bg-violet-600 text-white font-medium disabled:opacity-50"
+              >
+                {editingUser ? "Update" : "Create"}
+              </button>
+            </div>
+          )}
         </form>
+  );
+
+  if (embedded) return formContent;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div className="relative w-full sm:max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-auto">
+        <div className="sticky top-0 bg-white p-6 border-b border-slate-100 rounded-t-2xl sm:rounded-t-2xl z-10">
+          <h2 className="text-xl font-bold text-slate-900">
+            {editingUser ? t("Edit Service Office User") : t("Add Service Office User")}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {editingUser ? t("Update user details") : t("Fill in details for the new user")}
+          </p>
+        </div>
+        {formContent}
       </div>
 
       <SubcontractorModal

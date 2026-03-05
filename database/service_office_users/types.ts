@@ -17,6 +17,12 @@ export interface ServiceOfficeUser {
   updated_datetime: string;
 }
 
+/** Form state allows null for user_professional_grade (unselected); API requires number (value_id can be 0). */
+export type ServiceOfficeUserFormState = Omit<CreateServiceOfficeUserInput, "user_professional_grade"> & {
+  user_professional_grade: number | null;
+  status: number;
+};
+
 export interface CreateServiceOfficeUserInput {
   user_name: string;
   user_type: number;

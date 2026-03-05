@@ -6,7 +6,9 @@ import nodemailer from "nodemailer";
 
 const CODE_EXPIRY_MINUTES = 15;
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL ?? "Timese <onboarding@resend.dev>";
+// In development, allow Resend fallback when SMTP fails so the wizard works without SMTP config
 const SMTP_ALLOW_RESEND_FALLBACK =
+  process.env.NODE_ENV === "development" ||
   String(process.env.SMTP_ALLOW_RESEND_FALLBACK ?? "false").toLowerCase() === "true";
 
 function normalizeEmail(email: string): string {

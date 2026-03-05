@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ServiceOfficeUserModal } from "@/database/service_office_users/ServiceOfficeUserModal";
-import type { CreateServiceOfficeUserInput, ServiceOfficeUser } from "@/database/service_office_users/types";
+import type {
+  CreateServiceOfficeUserInput,
+  ServiceOfficeUser,
+  ServiceOfficeUserFormState,
+} from "@/database/service_office_users/types";
 
 const STATUS_LABELS: Record<number, string> = {
   1: "Active",
@@ -42,7 +46,7 @@ export function ServiceOfficeUsersModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<ServiceOfficeUser | null>(null);
-  const [form, setForm] = useState<CreateServiceOfficeUserInput & { status: number }>(defaultForm);
+  const [form, setForm] = useState<ServiceOfficeUserFormState>(defaultForm);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -131,7 +135,7 @@ export function ServiceOfficeUsersModal({
           body: JSON.stringify({
             user_name: form.user_name,
             user_type: form.user_type,
-            user_professional_grade: form.user_professional_grade,
+            user_professional_grade: form.user_professional_grade!,
             subcontractor_id: form.subcontractor_id,
             mobile_phone: form.mobile_phone,
             secondary_phone: form.secondary_phone,
@@ -155,6 +159,7 @@ export function ServiceOfficeUsersModal({
           body: JSON.stringify({
             ...form,
             service_office_id: serviceOffice.service_office_id,
+            user_professional_grade: form.user_professional_grade!,
           }),
         });
         if (!res.ok) {

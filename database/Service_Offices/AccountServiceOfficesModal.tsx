@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { ServiceOfficeModal } from "@/database/Service_Offices/ServiceOfficeModal";
+import { ServiceOfficeCustomersModal } from "@/database/customer/ServiceOfficeCustomersModal";
+import { ServiceOfficeSubcontractorsModal } from "@/database/subcontractors/ServiceOfficeSubcontractorsModal";
+import { ServiceOfficeUsersModal } from "@/database/service_office_users/ServiceOfficeUsersModal";
 import type { ServiceOffice, CreateServiceOfficeInput } from "@/database/Service_Offices/types";
 import { COUNTRIES } from "@/database/Service_Offices/countries";
 
@@ -45,6 +48,9 @@ export function AccountServiceOfficesModal({
   const [form, setForm] = useState<CreateServiceOfficeInput & { status: number }>(defaultForm);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [customersOffice, setCustomersOffice] = useState<{ service_office_id: number; service_office_name: string } | null>(null);
+  const [subcontractorsOffice, setSubcontractorsOffice] = useState<{ service_office_id: number; service_office_name: string } | null>(null);
+  const [usersOffice, setUsersOffice] = useState<{ service_office_id: number; service_office_name: string } | null>(null);
 
   const fetchOffices = useCallback(async () => {
     if (!account || !isOpen) return;
@@ -244,6 +250,56 @@ export function AccountServiceOfficesModal({
                       <td className="px-4 lg:px-6 py-3">
                         <div className="flex items-center justify-end gap-1">
                           <button
+                            onClick={() =>
+                              setCustomersOffice({
+                                service_office_id: office.service_office_id,
+                                service_office_name: office.service_office_name,
+                              })
+                            }
+                            className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                            title="Manage customers"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M16 19h6"/>
+                              <path d="M19 16v6"/>
+                              <circle cx="9" cy="7" r="4"/>
+                              <path d="M3 21v-2a6 6 0 0 1 6-6h2"/>
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() =>
+                              setSubcontractorsOffice({
+                                service_office_id: office.service_office_id,
+                                service_office_name: office.service_office_name,
+                              })
+                            }
+                            className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                            title="Manage subcontractors"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M4 20h16"/>
+                              <path d="M6 20V8l6-4 6 4v12"/>
+                              <path d="M9 12h6"/>
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() =>
+                              setUsersOffice({
+                                service_office_id: office.service_office_id,
+                                service_office_name: office.service_office_name,
+                              })
+                            }
+                            className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                            title="Manage users"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                              <circle cx="9" cy="7" r="4"/>
+                              <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                            </svg>
+                          </button>
+                          <button
                             onClick={() => openEditForm(office)}
                             className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600"
                             title="Edit"
@@ -293,6 +349,27 @@ export function AccountServiceOfficesModal({
         onChange={(updates) => setForm((prev) => ({ ...prev, ...updates }))}
         fixedAccountId={account?.account_id ?? null}
         fixedAccountName={account?.account_name}
+      />
+
+      <ServiceOfficeCustomersModal
+        isOpen={customersOffice != null}
+        serviceOffice={customersOffice}
+        onClose={() => setCustomersOffice(null)}
+        onNotify={onNotify}
+      />
+
+      <ServiceOfficeSubcontractorsModal
+        isOpen={subcontractorsOffice != null}
+        serviceOffice={subcontractorsOffice}
+        onClose={() => setSubcontractorsOffice(null)}
+        onNotify={onNotify}
+      />
+
+      <ServiceOfficeUsersModal
+        isOpen={usersOffice != null}
+        serviceOffice={usersOffice}
+        onClose={() => setUsersOffice(null)}
+        onNotify={onNotify}
       />
     </>
   );

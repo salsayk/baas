@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { NotificationContainer, useNotifications } from "@/app/components/notifications";
 import { Sidebar, SidebarProvider, MobileMenuButton } from "@/app/components/sidebar";
 import { AccountModal } from "@/database/accounts/AccountModal";
+import { AccountWizardModal } from "@/database/accounts/AccountWizardModal";
 import { EmailVerificationModal } from "@/database/accounts/EmailVerificationModal";
 import { AccountServiceOfficesModal } from "@/database/Service_Offices/AccountServiceOfficesModal";
 import type { Account, CreateAccountInput } from "@/database/accounts/types";
@@ -41,6 +42,7 @@ function AccountsContent() {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [form, setForm] = useState<CreateAccountInput & { status: number }>(defaultForm);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [serviceOfficesAccount, setServiceOfficesAccount] = useState<{
     account_id: number;
     account_name: string;
@@ -94,8 +96,24 @@ function AccountsContent() {
   };
 
   const openCreateModal = () => {
-    setEditingAccount(null);
-    setForm(defaultForm);
+    setWizardOpen(true);
+  };
+
+  const openEditModalOnly = (account: Account) => {
+    setEditingAccount(account);
+    setForm({
+      account_name: account.account_name,
+      mobile_phone: account.mobile_phone ?? null,
+      secondary_phone: account.secondary_phone ?? null,
+      email_address: account.email_address ?? null,
+      card_holder_name: account.card_holder_name ?? null,
+      card_number: account.card_number ?? null,
+      card_expiry_month: account.card_expiry_month ?? null,
+      card_expiry_year: account.card_expiry_year ?? null,
+      card_last_four: account.card_last_four ?? null,
+      card_cvv: account.card_cvv ?? null,
+      status: account.status,
+    });
     setIsModalOpen(true);
   };
 
@@ -470,6 +488,13 @@ function AccountsContent() {
           </div>
         </div>
       </main>
+
+      <AccountWizardModal
+        isOpen={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        onSuccess={fetchAccounts}
+        onNotify={(message, type) => (type === "create" ? notifyCreate(message) : notifyError(message))}
+      />
 
       <AccountModal
         isOpen={isModalOpen}

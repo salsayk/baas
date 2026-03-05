@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "@/app/context/TranslationContext";
 import type { ServiceOffice, CreateServiceOfficeInput } from "@/database/Service_Offices/types";
 import { COUNTRIES } from "@/database/Service_Offices/countries";
 
@@ -21,6 +22,8 @@ interface ServiceOfficeModalProps {
   /** When set, account is fixed (e.g. opened from account row). Field is hidden and value auto-selected. */
   fixedAccountId?: number | null;
   fixedAccountName?: string;
+  /** When true, render form content only (no modal overlay, no action buttons). Used in wizards. */
+  embedded?: boolean;
 }
 
 export function ServiceOfficeModal({
@@ -34,39 +37,25 @@ export function ServiceOfficeModal({
   onChange,
   fixedAccountId,
   fixedAccountName,
+  embedded = false,
 }: ServiceOfficeModalProps) {
+  const { t } = useTranslations();
   if (!isOpen) return null;
 
-  const accountFixed = fixedAccountId != null && fixedAccountId > 0;
+  const accountFixed =
+    (fixedAccountId != null && fixedAccountId > 0) || (!!fixedAccountName && fixedAccountName.trim() !== "");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (embedded) return;
     onSave();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <div className="relative w-full sm:max-w-xl bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-auto">
-        <div className="sticky top-0 bg-white p-6 border-b border-slate-100 rounded-t-2xl sm:rounded-t-2xl z-10">
-          <h2 className="text-xl font-bold text-slate-900">
-            {editingOffice ? "Edit Service Office" : "Add Service Office"}
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {editingOffice
-              ? "Update the service office details"
-              : "Fill in the details for the new service office"}
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+  const formContent = (
+    <form onSubmit={handleSubmit} className={embedded ? "space-y-5" : "p-6 space-y-5"}>
           <div>
             <label htmlFor="service_office_name" className="block text-sm font-medium text-slate-700 mb-2">
-              Service Office Name <span className="text-red-500">*</span>
+              {t("Service Office Name")} <span className="text-red-500">*</span>
             </label>
             <input
               id="service_office_name"
@@ -100,7 +89,7 @@ export function ServiceOfficeModal({
           {!accountFixed && (
             <div>
               <label htmlFor="account_id" className="block text-sm font-medium text-slate-700 mb-2">
-                Account <span className="text-red-500">*</span>
+                {t("Account")} <span className="text-red-500">*</span>
               </label>
               <select
                 id="account_id"
@@ -118,7 +107,7 @@ export function ServiceOfficeModal({
                 ))}
               </select>
               {editingOffice && (
-                <p className="mt-1 text-xs text-slate-500">Account cannot be changed when editing.</p>
+                <p className="mt-1 text-xs text-slate-500">{t("Account cannot be changed when editing.")}</p>
               )}
             </div>
           )}
@@ -131,7 +120,7 @@ export function ServiceOfficeModal({
 
           <div>
             <label htmlFor="country" className="block text-sm font-medium text-slate-700 mb-2">
-              Country
+              {t("Country")}
             </label>
             <select
               id="country"
@@ -149,8 +138,8 @@ export function ServiceOfficeModal({
             </select>
           </div>
 
-          <div>
-            <h3 className="text-sm font-semibold text-slate-700 mb-2">Status</h3>
+          <div id="service_office_status" tabIndex={-1}>
+            <h3 className="text-sm font-semibold text-slate-700 mb-2">{t("Status")}</h3>
             <div className="flex gap-3">
               {([1, 2] as const).map((s) => (
                 <button
@@ -172,28 +161,54 @@ export function ServiceOfficeModal({
             </div>
           </div>
 
-          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 pt-4 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSaving}
-              className="px-5 py-3 sm:py-2.5 rounded-xl text-slate-600 font-medium hover:bg-slate-100 transition-colors disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!form.service_office_name?.trim() || (!accountFixed && (!form.account_id || form.account_id < 1)) || isSaving}
-              className="px-5 py-3 sm:py-2.5 rounded-xl bg-violet-600 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-violet-700 transition-colors flex items-center justify-center gap-2"
-            >
-              {isSaving && (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              )}
-              {editingOffice ? "Update" : "Create"}
-            </button>
-          </div>
+          {!embedded && (
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSaving}
+                className="px-5 py-3 sm:py-2.5 rounded-xl text-slate-600 font-medium hover:bg-slate-100 transition-colors disabled:opacity-50"
+              >
+                {t("Cancel")}
+              </button>
+              <button
+                type="submit"
+                disabled={!form.service_office_name?.trim() || (!accountFixed && (!form.account_id || form.account_id < 1)) || isSaving}
+                className="px-5 py-3 sm:py-2.5 rounded-xl bg-violet-600 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-violet-700 transition-colors flex items-center justify-center gap-2"
+              >
+                {isSaving && (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                )}
+                {editingOffice ? "Update" : "Create"}
+              </button>
+            </div>
+          )}
         </form>
+  );
+
+  if (embedded) return formContent;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div className="relative w-full sm:max-w-xl bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-auto">
+        <div className="sticky top-0 bg-white p-6 border-b border-slate-100 rounded-t-2xl sm:rounded-t-2xl z-10">
+          <h2 className="text-xl font-bold text-slate-900">
+            {editingOffice ? t("Edit Service Office") : t("Add Service Office")}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {editingOffice
+              ? t("Update the service office details")
+              : t("Fill in the details for the new service office")}
+          </p>
+        </div>
+        {formContent}
       </div>
     </div>
   );
 }
+

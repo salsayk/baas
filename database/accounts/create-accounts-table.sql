@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     account_id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id           UUID NOT NULL,
     account_name      VARCHAR(100) NOT NULL,
-    mobile_phone      VARCHAR(20),
+    mobile_phone      VARCHAR(20) NOT NULL,
     secondary_phone   VARCHAR(20),
     email_address     VARCHAR(255) NOT NULL,,
     
