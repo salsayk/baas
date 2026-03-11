@@ -29,7 +29,10 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
   const fetchTranslations = useCallback(async () => {
     setLoadingTranslations(true);
     try {
-      const res = await fetch(`/api/translations/public?languageId=${languageId}`);
+      const res = await fetch(`/api/translations/public?languageId=${languageId}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
       if (!res.ok) {
         setDictionary({});
         return;

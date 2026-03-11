@@ -43,7 +43,11 @@ export async function GET(request: Request) {
       return acc;
     }, {});
 
-    return NextResponse.json(dictionary);
+    return NextResponse.json(dictionary, {
+      headers: {
+        "Cache-Control": "no-store, max-age=0",
+      },
+    });
   } catch (error) {
     console.error("Error fetching translations:", error);
     return NextResponse.json({});

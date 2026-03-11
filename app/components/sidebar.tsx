@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { useState, useEffect, createContext, useContext } from "react";
 import { useLanguage } from "@/app/context/LanguageContext";
+import { useTranslations } from "@/app/context/TranslationContext";
 
 // Sidebar context for mobile toggle
 interface SidebarContextType {
@@ -41,6 +42,7 @@ const navItems: NavItem[] = [
   { name: "Subcontractors", icon: "users", href: "/subcontractors" },
   { name: "Service Office Users", icon: "users", href: "/service-office-users" },
   { name: "Projects", icon: "award", href: "/projects" },
+  { name: "Contracts", icon: "file-text", href: "/contracts" },
   { name: "System Lookups", icon: "list", href: "/system-lookups" },
   { name: "Languages", icon: "globe", href: "/languages" },
   { name: "Language Labels", icon: "file-text", href: "/language-labels" },
@@ -238,6 +240,7 @@ function WorkspaceSelector() {
 
 // Navigation item component
 function NavItemLink({ item, isActive, onClick }: { item: NavItem; isActive: boolean; onClick?: () => void }) {
+  const { t } = useTranslations();
   const linkClass = `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
     isActive
       ? "bg-gradient-to-r rtl:bg-gradient-to-l from-blue-50 to-indigo-50 text-blue-700 border border-blue-100"
@@ -263,7 +266,7 @@ function NavItemLink({ item, isActive, onClick }: { item: NavItem; isActive: boo
   return (
     <Link href={item.href} className={linkClass} onClick={onClick}>
       <NavIcon name={item.icon} isActive={isActive} />
-      {item.name}
+      {t(item.name)}
     </Link>
   );
 }
