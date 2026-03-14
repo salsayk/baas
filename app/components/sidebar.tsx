@@ -8,6 +8,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useState, useEffect, createContext, useContext } from "react";
 import { useLanguage } from "@/app/context/LanguageContext";
 import { useTranslations } from "@/app/context/TranslationContext";
+import { ThemeSelector } from "@/app/components/ThemeSelector";
 
 // Sidebar context for mobile toggle
 interface SidebarContextType {
@@ -56,7 +57,7 @@ const navItems: NavItem[] = [
 
 // Icon components
 function NavIcon({ name, isActive }: { name: string; isActive?: boolean }) {
-  const className = isActive ? "text-blue-600" : "text-slate-400";
+  const className = isActive ? "text-blue-600 dark:text-blue-400" : "text-slate-400 dark:text-slate-500";
   
   const icons: Record<string, React.ReactNode> = {
     home: (
@@ -168,7 +169,7 @@ function NavIcon({ name, isActive }: { name: string; isActive?: boolean }) {
 // External link icon
 function ExternalLinkIcon() {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ms-auto text-slate-400">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ms-auto text-slate-400 dark:text-slate-500">
       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
       <polyline points="15 3 21 3 21 9"/>
       <line x1="10" x2="21" y1="14" y2="3"/>
@@ -187,7 +188,7 @@ function Logo() {
           <path d="m2 12 10 5 10-5"/>
         </svg>
       </div>
-      <span className="text-xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+      <span className="text-xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 dark:from-slate-200 dark:to-slate-400 bg-clip-text text-transparent">
         Timese
       </span>
     </Link>
@@ -201,7 +202,7 @@ function LanguageSelector() {
   // Show a placeholder that matches server render during hydration
   if (!mounted) {
     return (
-      <div className="mt-3 w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-400 h-[42px]">
+      <div className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-sm text-slate-400 dark:text-slate-500 h-[42px]">
         Loading...
       </div>
     );
@@ -211,7 +212,7 @@ function LanguageSelector() {
     <select
       value={languageId}
       onChange={(e) => setLanguageId(parseInt(e.target.value, 10))}
-      className="mt-3 w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
       aria-label="Language"
     >
       {languages.map((lang) => (
@@ -226,12 +227,12 @@ function LanguageSelector() {
 // Workspace selector component
 function WorkspaceSelector() {
   return (
-    <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gradient-to-r rtl:bg-gradient-to-l from-violet-50 to-purple-50 border border-violet-100 hover:border-violet-200 transition-colors">
+    <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gradient-to-r rtl:bg-gradient-to-l from-violet-50 to-purple-50 dark:from-violet-950/50 dark:to-purple-950/50 border border-violet-100 dark:border-violet-800 hover:border-violet-200 dark:hover:border-violet-700 transition-colors">
       <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
         P
       </div>
-      <span className="text-sm font-medium text-slate-700">Personal</span>
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ms-auto text-slate-400">
+      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Personal</span>
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ms-auto text-slate-400 dark:text-slate-500">
         <path d="m6 9 6 6 6-6"/>
       </svg>
     </button>
@@ -243,8 +244,8 @@ function NavItemLink({ item, isActive, onClick }: { item: NavItem; isActive: boo
   const { t } = useTranslations();
   const linkClass = `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
     isActive
-      ? "bg-gradient-to-r rtl:bg-gradient-to-l from-blue-50 to-indigo-50 text-blue-700 border border-blue-100"
-      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+      ? "bg-gradient-to-r rtl:bg-gradient-to-l from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800"
+      : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
   }`;
 
   if (item.external) {
@@ -339,7 +340,7 @@ function UserProfile() {
       </div>
       <button
         onClick={handleSignOut}
-        className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-600"
+        className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
         title="Sign out"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -358,10 +359,13 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
 
   return (
     <>
-      {/* Logo and language */}
-      <div className="p-4 lg:p-6 border-b border-slate-100">
+      {/* Logo, language and theme */}
+      <div className="p-4 lg:p-6 border-b border-slate-100 dark:border-slate-700">
         <Logo />
-        <LanguageSelector />
+        <div className="mt-3">
+          <LanguageSelector />
+          <ThemeSelector />
+        </div>
       </div>
 
       {/* Workspace Selector */}
@@ -384,7 +388,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
       </nav>
 
       {/* Footer - User Profile */}
-      <div className="p-3 lg:p-4 border-t border-slate-100">
+      <div className="p-3 lg:p-4 border-t border-slate-100 dark:border-slate-700">
         <UserProfile />
       </div>
     </>
@@ -398,7 +402,7 @@ export function MobileMenuButton() {
   return (
     <button
       onClick={toggle}
-      className="lg:hidden p-2 rounded-lg hover:bg-slate-100 transition-colors"
+      className="lg:hidden p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
       aria-label="Toggle sidebar"
     >
       {isOpen ? (
@@ -518,8 +522,8 @@ export function Sidebar() {
               />
             )}
             <aside
-              className={`fixed top-0 h-full w-72 flex flex-col z-[101] lg:hidden transform transition-transform duration-300 ease-in-out shadow-xl ${
-                isRtl ? "right-0 border-l border-slate-200" : "left-0 border-r border-slate-200"
+              className={`fixed top-0 h-full w-72 flex flex-col z-[101] lg:hidden transform transition-transform duration-300 ease-in-out shadow-xl bg-white dark:bg-slate-900 ${
+                isRtl ? "right-0 border-l border-slate-200 dark:border-slate-700" : "left-0 border-r border-slate-200 dark:border-slate-700"
               } ${
                 isOpen
                   ? "translate-x-0"
@@ -527,7 +531,6 @@ export function Sidebar() {
                   ? "translate-x-full"
                   : "-translate-x-full"
               }`}
-              style={{ backgroundColor: "#ffffff" }}
             >
               <SidebarContent onNavClick={close} />
             </aside>
@@ -537,7 +540,7 @@ export function Sidebar() {
 
       {/* Desktop Sidebar */}
       <aside
-        className={`app-sidebar-desktop hidden lg:flex w-64 bg-white flex-col min-h-screen sticky top-0 border-r border-slate-200 ${
+        className={`app-sidebar-desktop hidden lg:flex w-64 bg-white dark:bg-slate-900 flex-col min-h-screen sticky top-0 border-r border-slate-200 dark:border-slate-700 ${
           isRtl ? "lg:order-last" : "lg:order-first"
         }`}
       >

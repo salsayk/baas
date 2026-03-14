@@ -145,11 +145,12 @@ export function ScreenPermissionsModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        className="absolute inset-0 backdrop-blur-sm"
+        style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="relative w-full sm:max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="relative w-full sm:max-w-2xl bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[96vh] overflow-hidden flex flex-col">
         <div className="p-6 border-b border-slate-100 flex-shrink-0">
           <h2 className="text-xl font-bold text-slate-900">Manage Permissions</h2>
           <p className="mt-1 text-sm text-slate-500">

@@ -387,7 +387,7 @@ function DashboardContent() {
 
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-3 border-slate-200 border-t-blue-500 rounded-full animate-spin" />
           <p className="text-slate-500 text-sm">Loading dashboard...</p>
@@ -397,12 +397,12 @@ function DashboardContent() {
   }
 
   return (
-    <div className="app-layout-with-sidebar min-h-screen bg-slate-50 flex flex-row">
+    <div className="app-layout-with-sidebar min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-row">
       <Sidebar />
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="h-14 lg:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
+        <header className="h-14 lg:h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <MobileMenuButton />
             <div className="flex items-center gap-2 text-sm">
@@ -511,7 +511,7 @@ function DashboardContent() {
           </div>
 
           {/* API Keys Section */}
-          <div className="bg-white rounded-xl lg:rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-xl lg:rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
             <div className="p-4 lg:p-6 border-b border-slate-100">
               <div className="flex items-center gap-3 lg:gap-4">
                 <h3 className="text-lg lg:text-xl font-bold text-slate-900">API Keys</h3>
@@ -727,10 +727,11 @@ function DashboardContent() {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            className="absolute inset-0 backdrop-blur-sm"
+            style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
             onClick={resetModalState}
           />
-          <div className="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-auto">
+          <div className="relative w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[96vh] overflow-auto">
             <div className="p-4 lg:p-6 border-b border-slate-100">
               <h2 className="text-lg lg:text-xl font-bold text-slate-900">
                 {editingKey ? "Edit API Key" : "Create New API Key"}

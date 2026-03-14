@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { NotificationContainer, useNotifications } from "@/app/components/notifications";
 import { Sidebar, SidebarProvider, MobileMenuButton } from "@/app/components/sidebar";
 import { ProjectModal } from "@/database/project/ProjectModal";
+import { AssignContractsModal } from "@/database/project/AssignContractsModal";
 import type { Project, CreateProjectInput } from "@/database/project/types";
 import type { ServiceOffice } from "@/database/Service_Offices/types";
 import type { Customer } from "@/database/customer/types";
@@ -39,6 +40,7 @@ function ProjectsContent() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [form, setForm] = useState<CreateProjectInput & { status: number }>(defaultForm);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [assignContractsProject, setAssignContractsProject] = useState<Project | null>(null);
   const [isLoadingOffices, setIsLoadingOffices] = useState(true);
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
@@ -106,7 +108,7 @@ function ProjectsContent() {
     } finally {
       setIsLoadingCustomers(false);
     }
-  }, [fixedCustomerId, selectedServiceOfficeId, selectedCustomerId]);
+  }, [fixedCustomerId, selectedServiceOfficeId]);
 
   const fetchProjects = useCallback(async () => {
     if (selectedServiceOfficeId === "" || selectedCustomerId === "") {
@@ -238,10 +240,10 @@ function ProjectsContent() {
   };
 
   return (
-    <div className="app-layout-with-sidebar min-h-screen bg-slate-50 flex flex-row">
+    <div className="app-layout-with-sidebar min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-row">
       <Sidebar />
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 lg:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
+        <header className="h-14 lg:h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <MobileMenuButton />
             <div className="flex items-center gap-2 text-sm">
@@ -261,7 +263,7 @@ function ProjectsContent() {
             </div>
           )}
 
-          <div className="bg-white rounded-xl lg:rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-xl lg:rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
             <div className="p-4 lg:p-6 border-b border-slate-100">
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                 <div>
@@ -271,7 +273,11 @@ function ProjectsContent() {
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                   <select
                     value={selectedServiceOfficeId === "" ? "" : selectedServiceOfficeId}
-                    onChange={(e) => setSelectedServiceOfficeId(e.target.value ? parseInt(e.target.value, 10) : "")}
+                    onChange={(e) => {
+                      const val = e.target.value ? parseInt(e.target.value, 10) : "";
+                      setSelectedServiceOfficeId(val);
+                      if (val !== "") setSelectedCustomerId("");
+                    }}
                     className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-900 min-w-[220px]"
                     disabled={isLoadingOffices || !!fixedServiceOfficeId}
                   >
@@ -333,7 +339,20 @@ function ProjectsContent() {
                         <td className="px-4 lg:px-6 py-4 text-sm text-slate-700">{STATUS_LABELS[project.status] ?? "Unknown"}</td>
                         <td className="px-4 lg:px-6 py-4">
                           <div className="flex items-center justify-end gap-1">
-                            <button onClick={() => openEditModal(project)} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600" title="Edit">
+                            <button
+                              onClick={() => setAssignContractsProject(project)}
+                              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                              title="Assign Contracts"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                                <line x1="16" y1="13" x2="8" y2="13"/>
+                                <line x1="16" y1="17" x2="8" y2="17"/>
+                                <polyline points="10 9 9 9 8 9"/>
+                              </svg>
+                            </button>
+                            <button onClick={() => openEditModal(project)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300" title="Edit">
                               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
                               </svg>
@@ -362,6 +381,15 @@ function ProjectsContent() {
           </div>
         </div>
       </main>
+
+      <AssignContractsModal
+        isOpen={!!assignContractsProject}
+        project={assignContractsProject}
+        onClose={() => setAssignContractsProject(null)}
+        onSaved={() => {
+          notifyUpdate("Contract assignments updated");
+        }}
+      />
 
       <ProjectModal
         isOpen={isModalOpen}

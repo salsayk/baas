@@ -16,6 +16,45 @@ const STATUS_KEYS: Record<number, string> = {
   3: "Deleted",
 };
 
+function toDateString(val: string | Date | null | undefined): string {
+  if (val == null || val === "") return "";
+  if (typeof val === "string") return val.slice(0, 10);
+  if (val instanceof Date) return val.toISOString().slice(0, 10);
+  return String(val).slice(0, 10);
+}
+
+function toNumber(val: unknown): number | null {
+  if (val == null || val === "") return null;
+  if (typeof val === "number" && !Number.isNaN(val)) return val;
+  const n = typeof val === "string" ? parseFloat(val) : Number(val);
+  return Number.isNaN(n) ? null : n;
+}
+
+function contractToFormValues(contract: Contract, namePrefix?: string): CreateContractInput & { status: number } {
+  return {
+    contract_name: namePrefix ? namePrefix + contract.contract_name : contract.contract_name,
+    contract_description: contract.contract_description ?? null,
+    service_office_id: Number(contract.service_office_id),
+    customer_id: Number(contract.customer_id),
+    contract_type: Number(contract.contract_type),
+    status: Number(contract.status) as 1 | 2 | 3,
+    contract_start_date: toDateString(contract.contract_start_date),
+    contract_optional_end_date: contract.contract_optional_end_date ? toDateString(contract.contract_optional_end_date) : null,
+    contract_amount_value: toNumber(contract.contract_amount_value),
+    contract_currency: String(contract.contract_currency ?? "ILS"),
+    pp_proforma_recurrence: Number(contract.pp_proforma_recurrence) ?? 0,
+    pp_proforma_occasion: String(contract.pp_proforma_occasion ?? ""),
+    pp_initial_payment_reached_indicator: Number(contract.pp_initial_payment_reached_indicator) ?? 0,
+    pp_initial_amount_value: Number(contract.pp_initial_amount_value) ?? 0,
+    pp_upper_cap_reached_indicator: Number(contract.pp_upper_cap_reached_indicator) ?? 0,
+    pp_upper_cap_amount_value: Number(contract.pp_upper_cap_amount_value) ?? 0,
+    pp_recurrence_initial_payment_reached_indicator: Number(contract.pp_recurrence_initial_payment_reached_indicator) ?? 0,
+    pp_recurrence_initial_amount_value: Number(contract.pp_recurrence_initial_amount_value) ?? 0,
+    pp_recurrence_upper_cap_reached_indicator: Number(contract.pp_recurrence_upper_cap_reached_indicator) ?? 0,
+    pp_recurrence_upper_cap_amount_value: Number(contract.pp_recurrence_upper_cap_amount_value) ?? 0,
+  };
+}
+
 function getDefaultForm(serviceOfficeId: number): CreateContractInput & { status: number } {
   const today = new Date().toISOString().slice(0, 10);
   return {
@@ -220,28 +259,13 @@ function ContractsContent() {
 
   const openEditModal = (contract: Contract) => {
     setEditingContract(contract);
-    setForm({
-      contract_name: contract.contract_name,
-      contract_description: contract.contract_description,
-      service_office_id: contract.service_office_id,
-      customer_id: contract.customer_id,
-      contract_type: contract.contract_type,
-      status: contract.status,
-      contract_start_date: contract.contract_start_date,
-      contract_optional_end_date: contract.contract_optional_end_date,
-      contract_amount_value: contract.contract_amount_value,
-      contract_currency: contract.contract_currency,
-      pp_proforma_recurrence: contract.pp_proforma_recurrence,
-      pp_proforma_occasion: contract.pp_proforma_occasion,
-      pp_initial_payment_reached_indicator: contract.pp_initial_payment_reached_indicator,
-      pp_initial_amount_value: contract.pp_initial_amount_value,
-      pp_upper_cap_reached_indicator: contract.pp_upper_cap_reached_indicator,
-      pp_upper_cap_amount_value: contract.pp_upper_cap_amount_value,
-      pp_recurrence_initial_payment_reached_indicator: contract.pp_recurrence_initial_payment_reached_indicator,
-      pp_recurrence_initial_amount_value: contract.pp_recurrence_initial_amount_value,
-      pp_recurrence_upper_cap_reached_indicator: contract.pp_recurrence_upper_cap_reached_indicator,
-      pp_recurrence_upper_cap_amount_value: contract.pp_recurrence_upper_cap_amount_value,
-    });
+    setForm(contractToFormValues(contract));
+    setIsModalOpen(true);
+  };
+
+  const openCopyModal = (contract: Contract) => {
+    setEditingContract(null);
+    setForm(contractToFormValues(contract, "copy of "));
     setIsModalOpen(true);
   };
 
@@ -330,22 +354,22 @@ function ContractsContent() {
   };
 
   return (
-    <div className="app-layout-with-sidebar min-h-screen bg-slate-50 flex flex-row">
+    <div className="app-layout-with-sidebar min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-row">
       <Sidebar />
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 lg:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
+        <header className="h-14 lg:h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <MobileMenuButton />
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-slate-400 hidden sm:inline">Pages</span>
-              <span className="text-slate-300 hidden sm:inline">/</span>
-              <span className="text-slate-700 font-medium">{t("Contracts")}</span>
+              <span className="text-slate-400 dark:text-slate-500 hidden sm:inline">Pages</span>
+              <span className="text-slate-300 dark:text-slate-600 hidden sm:inline">/</span>
+              <span className="text-slate-700 dark:text-slate-200 font-medium">{t("Contracts")}</span>
             </div>
           </div>
         </header>
 
         <div className="flex-1 p-4 lg:p-8 overflow-auto">
-          <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 mb-6 lg:mb-8">{t("Contracts")}</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 dark:text-slate-100 mb-6 lg:mb-8">{t("Contracts")}</h1>
 
           {error && (
             <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200">
@@ -353,12 +377,12 @@ function ContractsContent() {
             </div>
           )}
 
-          <div className="bg-white rounded-xl lg:rounded-2xl border border-slate-200 overflow-hidden">
-            <div className="p-4 lg:p-6 border-b border-slate-100">
+          <div className="bg-white dark:bg-slate-900 rounded-xl lg:rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="p-4 lg:p-6 border-b border-slate-100 dark:border-slate-700">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h2 className="text-lg lg:text-xl font-bold text-slate-900">{t("By service office")}</h2>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <h2 className="text-lg lg:text-xl font-bold text-slate-900 dark:text-slate-100">{t("By service office")}</h2>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                     {t("Select a service office to view and manage its contracts")}
                   </p>
                 </div>
@@ -368,7 +392,7 @@ function ContractsContent() {
                     onChange={(e) =>
                       setSelectedServiceOfficeId(e.target.value ? parseInt(e.target.value, 10) : "")
                     }
-                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-900 min-w-[220px]"
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200 min-w-[220px]"
                     disabled={isLoadingOffices || !!fixedServiceOfficeId}
                   >
                     <option value="">{t("Select service office")}</option>
@@ -392,7 +416,7 @@ function ContractsContent() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/50">
+                  <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
                     <th className="px-4 lg:px-6 py-4 text-start text-xs font-semibold text-slate-500 uppercase">
                       {t("Contract Name")}
                     </th>
@@ -405,12 +429,12 @@ function ContractsContent() {
                     <th className="px-4 lg:px-6 py-4 text-start text-xs font-semibold text-slate-500 uppercase">
                       {t("Status")}
                     </th>
-                    <th className="px-4 lg:px-6 py-4 text-end text-xs font-semibold text-slate-500 uppercase">
+                    <th className="sticky right-0 min-w-[100px] px-4 lg:px-6 py-4 text-end text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase bg-slate-50/50 dark:bg-slate-800/50 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.05)]">
                       {t("Actions")}
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                   {isLoadingContracts ? (
                     <tr>
                       <td colSpan={5} className="px-4 lg:px-6 py-16 text-center text-slate-500">
@@ -431,8 +455,8 @@ function ContractsContent() {
                     </tr>
                   ) : (
                     contracts.map((contract) => (
-                      <tr key={contract.contract_id} className="hover:bg-slate-50/50">
-                        <td className="px-4 lg:px-6 py-4 font-medium text-slate-900">
+                      <tr key={contract.contract_id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                        <td className="px-4 lg:px-6 py-4 font-medium text-slate-900 dark:text-slate-100">
                           {contract.contract_name}
                         </td>
                         <td className="px-4 lg:px-6 py-4 hidden md:table-cell text-sm text-slate-600">
@@ -446,11 +470,21 @@ function ContractsContent() {
                         <td className="px-4 lg:px-6 py-4 text-sm text-slate-700">
                           {t(STATUS_KEYS[contract.status] ?? "Unknown")}
                         </td>
-                        <td className="px-4 lg:px-6 py-4">
+                        <td className="sticky right-0 min-w-[100px] px-4 lg:px-6 py-4 bg-white dark:bg-slate-900 group-hover:bg-slate-50/50 dark:group-hover:bg-slate-800/50 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.05)]">
                           <div className="flex items-center justify-end gap-1">
                             <button
+                              onClick={() => openCopyModal(contract)}
+                              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                              title={t("Copy")}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                              </svg>
+                            </button>
+                            <button
                               onClick={() => openEditModal(contract)}
-                              className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
                               title={t("Edit")}
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -475,7 +509,7 @@ function ContractsContent() {
                             ) : (
                               <button
                                 onClick={() => setDeleteConfirm(contract.contract_id)}
-                                className="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500"
+                                className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400"
                                 title={t("Delete")}
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

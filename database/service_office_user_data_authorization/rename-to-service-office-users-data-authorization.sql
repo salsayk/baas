@@ -1,0 +1,12 @@
+-- Rename table to service_office_users_data_authorization
+-- Run: node database/run-sql.mjs database/service_office_user_data_authorization/rename-to-service-office-users-data-authorization.sql
+
+ALTER TABLE IF EXISTS service_office_user_data_authorization RENAME TO service_office_users_data_authorization;
+
+DROP INDEX IF EXISTS idx_service_office_user_data_authorization_user_id;
+DROP INDEX IF EXISTS idx_service_office_user_data_authorization_authorized_entity_type;
+DROP INDEX IF EXISTS idx_service_office_user_data_authorization_entity_id;
+
+CREATE INDEX IF NOT EXISTS idx_service_office_users_data_authorization_user_id ON service_office_users_data_authorization(user_id);
+CREATE INDEX IF NOT EXISTS idx_service_office_users_data_authorization_authorized_entity_type ON service_office_users_data_authorization(authorized_entity_type);
+CREATE INDEX IF NOT EXISTS idx_service_office_users_data_authorization_entity_id ON service_office_users_data_authorization(entity_id);

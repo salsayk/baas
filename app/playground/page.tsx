@@ -30,7 +30,7 @@ function PlaygroundContent() {
 
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-3 border-slate-200 border-t-blue-500 rounded-full animate-spin" />
           <p className="text-slate-500 text-sm">Loading...</p>
@@ -40,7 +40,7 @@ function PlaygroundContent() {
   }
 
   return (
-    <div className="app-layout-with-sidebar min-h-screen bg-slate-50 flex flex-row">
+    <div className="app-layout-with-sidebar min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-row">
       <Sidebar />
 
       <main className="flex-1 flex flex-col min-w-0">

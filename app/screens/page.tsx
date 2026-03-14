@@ -143,11 +143,11 @@ function ScreensContent() {
   };
 
   return (
-    <div className="app-layout-with-sidebar min-h-screen bg-slate-50 flex flex-row">
+    <div className="app-layout-with-sidebar min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-row">
       <Sidebar />
 
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 lg:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
+        <header className="h-14 lg:h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <MobileMenuButton />
             <div className="flex items-center gap-2 text-sm">
@@ -180,7 +180,7 @@ function ScreensContent() {
             </div>
           )}
 
-          <div className="bg-white rounded-xl lg:rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-xl lg:rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
             <div className="p-4 lg:p-6 border-b border-slate-100">
               <div className="flex items-center justify-between gap-4">
                 <div>

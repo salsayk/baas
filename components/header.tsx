@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { GithubIcon, Menu, X } from "lucide-react"
 import { useSession, signIn, signOut } from "next-auth/react"
 import { useState, useEffect } from "react"
+import { ThemeSelector } from "@/app/components/ThemeSelector"
 
 export function Header() {
   const { data: session, status } = useSession()
@@ -88,6 +89,7 @@ export function Header() {
 
           {/* Desktop Auth Buttons */}
           <div className="hidden md:flex items-center gap-3">
+            <ThemeSelector compact />
             {!mounted || status === "loading" ? (
               <div className="flex items-center gap-3">
                 <div className="h-9 w-16 bg-muted animate-pulse rounded-md" />

@@ -15,37 +15,42 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const serviceOfficeId = searchParams.get("service_office_id");
+    const customerId = searchParams.get("customer_id");
 
     const client = getDbClient();
     await client.connect();
     try {
-      let res;
+      const params: Array<string | number> = [user.id as string];
+      const where: string[] = [];
+
       if (serviceOfficeId) {
         const id = parseInt(serviceOfficeId, 10);
         if (isNaN(id)) {
           return NextResponse.json({ error: "Invalid service_office_id" }, { status: 400 });
         }
-        res = await client.query(
-          `SELECT c.*, cust.customer_name
-           FROM contracts c
-           INNER JOIN customers cust ON cust.customer_id = c.customer_id AND cust.service_office_id = c.service_office_id
-           INNER JOIN service_offices so ON so.service_office_id = c.service_office_id AND so.status != 3
-           INNER JOIN accounts a ON a.account_id = so.account_id AND a.user_id = $1
-           WHERE c.service_office_id = $2
-           ORDER BY c.creation_datetime DESC`,
-          [user.id, id]
-        );
-      } else {
-        res = await client.query(
-          `SELECT c.*, cust.customer_name
-           FROM contracts c
-           INNER JOIN customers cust ON cust.customer_id = c.customer_id AND cust.service_office_id = c.service_office_id
-           INNER JOIN service_offices so ON so.service_office_id = c.service_office_id AND so.status != 3
-           INNER JOIN accounts a ON a.account_id = so.account_id AND a.user_id = $1
-           ORDER BY c.creation_datetime DESC`,
-          [user.id]
-        );
+        params.push(id);
+        where.push(`c.service_office_id = $${params.length}`);
       }
+      if (customerId) {
+        const id = parseInt(customerId, 10);
+        if (isNaN(id)) {
+          return NextResponse.json({ error: "Invalid customer_id" }, { status: 400 });
+        }
+        params.push(id);
+        where.push(`c.customer_id = $${params.length}`);
+      }
+
+      const whereClause = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+      const res = await client.query(
+        `SELECT c.*, cust.customer_name
+         FROM contracts c
+         INNER JOIN customers cust ON cust.customer_id = c.customer_id AND cust.service_office_id = c.service_office_id
+         INNER JOIN service_offices so ON so.service_office_id = c.service_office_id AND so.status != 3
+         INNER JOIN accounts a ON a.account_id = so.account_id AND a.user_id = $1
+         ${whereClause}
+         ORDER BY c.creation_datetime DESC`,
+        params
+      );
       return NextResponse.json(res.rows);
     } finally {
       await client.end();

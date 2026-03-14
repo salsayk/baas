@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import "./globals.css";
 import { AuthProvider } from "./context/AuthContext";
 import { LanguageProvider } from "./context/LanguageContext";
+import { ThemeProvider } from "./context/ThemeContext";
 import { TranslationProvider } from "./context/TranslationContext";
 import { AutoTranslate } from "./components/AutoTranslate";
 import { authOptions } from "./api/auth/[...nextauth]/route";
@@ -35,17 +36,33 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+(function(){
+var k='timese-theme',s=localStorage.getItem(k),d=window.matchMedia('(prefers-color-scheme: dark)').matches;
+var t=s||(d?'dark':'light');
+if(t==='dark')document.documentElement.setAttribute('data-theme','dark');
+else document.documentElement.removeAttribute('data-theme');
+})();
+`,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
         <AuthProvider session={session}>
-          <LanguageProvider>
-            <TranslationProvider>
-              <AutoTranslate />
-              {children}
-            </TranslationProvider>
-          </LanguageProvider>
+          <ThemeProvider>
+            <LanguageProvider>
+              <TranslationProvider>
+                <AutoTranslate />
+                {children}
+              </TranslationProvider>
+            </LanguageProvider>
+          </ThemeProvider>
         </AuthProvider>
       </body>
     </html>

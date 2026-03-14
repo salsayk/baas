@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     const client = getDbClient();
     await client.connect();
     try {
-      const params: Array<number> = [user.id];
+      const params: Array<number | string> = [user.id as string];
       const where: string[] = [];
 
       if (serviceOfficeId) {

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { NotificationContainer, useNotifications } from "@/app/components/notifications";
 import { Sidebar, SidebarProvider, MobileMenuButton } from "@/app/components/sidebar";
 import { ServiceOfficeUserModal } from "@/database/service_office_users/ServiceOfficeUserModal";
+import { AssignCustomersProjectsWizard } from "@/database/service_office_users/AssignCustomersProjectsWizard";
 import type {
   CreateServiceOfficeUserInput,
   ServiceOfficeUser,
@@ -43,6 +44,7 @@ function ServiceOfficeUsersContent() {
   const [editingUser, setEditingUser] = useState<ServiceOfficeUser | null>(null);
   const [form, setForm] = useState<ServiceOfficeUserFormState>(defaultForm);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [assignWizardUser, setAssignWizardUser] = useState<ServiceOfficeUser | null>(null);
   const [isLoadingOffices, setIsLoadingOffices] = useState(true);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -230,10 +232,10 @@ function ServiceOfficeUsersContent() {
   };
 
   return (
-    <div className="app-layout-with-sidebar min-h-screen bg-slate-50 flex flex-row">
+    <div className="app-layout-with-sidebar min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-row">
       <Sidebar />
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 lg:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
+        <header className="h-14 lg:h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <MobileMenuButton />
             <div className="flex items-center gap-2 text-sm">
@@ -253,7 +255,7 @@ function ServiceOfficeUsersContent() {
             </div>
           )}
 
-          <div className="bg-white rounded-xl lg:rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-xl lg:rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
             <div className="p-4 lg:p-6 border-b border-slate-100">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
@@ -314,6 +316,20 @@ function ServiceOfficeUsersContent() {
                         <td className="px-4 lg:px-6 py-4 text-sm text-slate-700">{STATUS_LABELS[user.status] ?? "Unknown"}</td>
                         <td className="px-4 lg:px-6 py-4">
                           <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => setAssignWizardUser(user)}
+                              className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                              title="Assign Customers & Projects"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                                <circle cx="9" cy="7" r="4"/>
+                                <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                <path d="M12 11v6"/>
+                                <path d="M9 14h6"/>
+                              </svg>
+                            </button>
                             <button onClick={() => openEditModal(user)} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600" title="Edit">
                               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
@@ -343,6 +359,16 @@ function ServiceOfficeUsersContent() {
           </div>
         </div>
       </main>
+
+      <AssignCustomersProjectsWizard
+        key={assignWizardUser?.service_office_user_id ?? "closed"}
+        isOpen={!!assignWizardUser}
+        serviceOfficeId={assignWizardUser ? assignWizardUser.service_office_id : 0}
+        serviceOfficeUserId={assignWizardUser?.service_office_user_id ?? 0}
+        userName={assignWizardUser?.user_name ?? ""}
+        onClose={() => setAssignWizardUser(null)}
+        onSaved={() => notifyUpdate("Assignments updated")}
+      />
 
       <ServiceOfficeUserModal
         isOpen={isModalOpen}
