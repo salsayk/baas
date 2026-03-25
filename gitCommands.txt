@@ -7,3 +7,20 @@ git push -u origin main
 run node:
 npm run dev
 originyarn run dev
+
+
+
+{
+  "postgresql": {
+    "host": "34.18.191.103",
+    "port": 5432,
+    "database": "postgres",
+    "username": "postgres",
+    "password": "baasason",
+    "ssl": false,
+    "connectionPool": {
+      "min": 2,
+      "max": 10
+    }
+  }
+}
