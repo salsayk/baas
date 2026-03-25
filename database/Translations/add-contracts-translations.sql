@@ -28,7 +28,7 @@ seed(source_text, en_text, he_text) AS (
     ('Fill in details for the new contract', 'Fill in details for the new contract', 'מלא את הפרטים לחוזה החדש'),
     ('Update contract details', 'Update contract details', 'עדכן את פרטי החוזה'),
     ('Contract Details', 'Contract Details', 'פרטי חוזה'),
-    ('PP Proforma', 'PP Proforma', 'PP Proforma'),
+    ('PP Proforma', 'PP Proforma', 'תשלומים'),
     ('Contract Description', 'Contract Description', 'תיאור חוזה'),
     ('Contract Type', 'Contract Type', 'סוג חוזה'),
     ('Select customer', 'Select customer', 'בחר לקוח'),

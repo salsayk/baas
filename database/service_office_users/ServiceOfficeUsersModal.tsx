@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "@/app/context/TranslationContext";
 import { ServiceOfficeUserModal } from "@/database/service_office_users/ServiceOfficeUserModal";
 import type {
   CreateServiceOfficeUserInput,
   ServiceOfficeUser,
-  ServiceOfficeUserFormState,
 } from "@/database/service_office_users/types";
 
 const STATUS_LABELS: Record<number, string> = {
@@ -16,7 +16,8 @@ const STATUS_LABELS: Record<number, string> = {
 
 const defaultForm: CreateServiceOfficeUserInput & { status: number } = {
   user_name: "",
-  user_type: 0,
+  // Sentinel value "not selected yet" (matches ServiceOfficeUserModal placeholder).
+  user_type: -1,
   user_professional_grade: 0,
   service_office_id: 0,
   subcontractor_id: null,
@@ -39,6 +40,7 @@ export function ServiceOfficeUsersModal({
   onClose,
   onNotify,
 }: ServiceOfficeUsersModalProps) {
+  const { t } = useTranslations();
   const [users, setUsers] = useState<ServiceOfficeUser[]>([]);
   const [subcontractors, setSubcontractors] = useState<{ subcontractor_id: number; subcontractor_name: string }[]>(
     []
@@ -46,7 +48,7 @@ export function ServiceOfficeUsersModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<ServiceOfficeUser | null>(null);
-  const [form, setForm] = useState<ServiceOfficeUserFormState>(defaultForm);
+  const [form, setForm] = useState<CreateServiceOfficeUserInput & { status: number }>(defaultForm);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -124,7 +126,13 @@ export function ServiceOfficeUsersModal({
   };
 
   const handleSave = async () => {
-    if (!serviceOffice || !form.user_name?.trim() || !form.mobile_phone?.trim() || !form.email_address?.trim())
+    if (
+      !serviceOffice ||
+      !form.user_name?.trim() ||
+      !form.mobile_phone?.trim() ||
+      !form.email_address?.trim() ||
+      form.user_type === -1
+    )
       return;
     setIsSaving(true);
     try {
@@ -201,9 +209,9 @@ export function ServiceOfficeUsersModal({
           <div className="p-4 lg:p-6 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
             <div>
               <h2 className="text-xl font-bold text-slate-900">
-                Service Office Users — {serviceOffice?.service_office_name ?? ""}
+                {t("Service Office Users")} — {serviceOffice?.service_office_name ?? ""}
               </h2>
-              <p className="mt-1 text-sm text-slate-500">Manage users for this service office</p>
+              <p className="mt-1 text-sm text-slate-500">{t("Manage users for this service office")}</p>
               <div className="mt-3">
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
                   Service Office
@@ -306,7 +314,14 @@ export function ServiceOfficeUsersModal({
         isSaving={isSaving}
         onClose={resetForm}
         onSave={handleSave}
-        onChange={(updates) => setForm((prev) => ({ ...prev, ...updates }))}
+        onChange={(updates) =>
+          setForm((prev) => ({
+            ...prev,
+            ...updates,
+            user_professional_grade:
+              updates.user_professional_grade == null ? prev.user_professional_grade : updates.user_professional_grade,
+          }))
+        }
         onSubcontractorAdded={(sub) =>
           setSubcontractors((prev) =>
             prev.some((s) => s.subcontractor_id === sub.subcontractor_id) ? prev : [...prev, sub]

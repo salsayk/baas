@@ -43,7 +43,7 @@ export function Header() {
 
   const handleSignIn = () => {
     setMobileMenuOpen(false)
-    signIn("google", { callbackUrl: "/dashboards" })
+    signIn("google", { callbackUrl: "/accounts" })
   }
 
   const handleSignOut = () => {
@@ -97,7 +97,7 @@ export function Header() {
               </div>
             ) : session ? (
               <div className="flex items-center gap-3">
-                <Link href="/dashboards">
+                <Link href="/accounts">
                   <Button variant="ghost" size="sm">
                     Dashboard
                   </Button>
@@ -220,7 +220,7 @@ export function Header() {
                     <p className="text-sm truncate text-slate-600">{session.user?.email}</p>
                   </div>
                 </div>
-                <Link href="/dashboards" onClick={closeMobileMenu}>
+                <Link href="/accounts" onClick={closeMobileMenu}>
                   <Button className="w-full" size="lg">
                     Go to Dashboard
                   </Button>

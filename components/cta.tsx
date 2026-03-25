@@ -12,9 +12,9 @@ export function CTA() {
 
   const handleGetStarted = () => {
     if (session) {
-      router.push("/dashboards")
+      router.push("/accounts")
     } else {
-      signIn("google", { callbackUrl: "/dashboards" })
+      signIn("google", { callbackUrl: "/accounts" })
     }
   }
 

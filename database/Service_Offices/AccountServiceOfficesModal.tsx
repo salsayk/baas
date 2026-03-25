@@ -7,6 +7,7 @@ import { ServiceOfficeSubcontractorsModal } from "@/database/subcontractors/Serv
 import { ServiceOfficeUsersModal } from "@/database/service_office_users/ServiceOfficeUsersModal";
 import type { ServiceOffice, CreateServiceOfficeInput } from "@/database/Service_Offices/types";
 import { COUNTRIES } from "@/database/Service_Offices/countries";
+import { useTranslations } from "@/app/context/TranslationContext";
 
 const STATUS_LABELS: Record<number, string> = {
   1: "Active",
@@ -41,6 +42,7 @@ export function AccountServiceOfficesModal({
   onClose,
   onNotify,
 }: AccountServiceOfficesModalProps) {
+  const { t } = useTranslations();
   const [offices, setOffices] = useState<ServiceOffice[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -164,7 +166,7 @@ export function AccountServiceOfficesModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[40] flex items-center justify-center p-4">
         <div
           className="absolute inset-0 backdrop-blur-sm"
           style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
@@ -175,15 +177,18 @@ export function AccountServiceOfficesModal({
           <div className="p-4 lg:p-6 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
             <div>
               <h2 className="text-xl font-bold text-slate-900">
-                Service Offices — {account?.account_name ?? ""}
+                {t("Service Offices")} — {account?.account_name ?? ""}
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Add, edit, or remove service offices for this account
+                {t("Add, edit, or remove service offices for this account")}
               </p>
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={openAddForm}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openAddForm();
+                }}
                 disabled={!account}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 transition-colors disabled:opacity-50"
               >
@@ -191,7 +196,7 @@ export function AccountServiceOfficesModal({
                   <path d="M5 12h14"/>
                   <path d="M12 5v14"/>
                 </svg>
-                Add Service Office
+                {t("Add Service Office")}
               </button>
               <button
                 onClick={onClose}
@@ -275,7 +280,7 @@ export function AccountServiceOfficesModal({
                               })
                             }
                             className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600"
-                            title="Manage subcontractors"
+                            title={t("Manage subcontractors")}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                               <path d="M4 20h16"/>

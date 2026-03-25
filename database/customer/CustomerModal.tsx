@@ -1,6 +1,7 @@
 "use client";
 
 import { COUNTRIES } from "@/database/Service_Offices/countries";
+import { useTranslations } from "@/app/context/TranslationContext";
 import type { CreateCustomerInput, Customer } from "@/database/customer/types";
 
 const STATUS_LABELS: Record<number, string> = {
@@ -37,6 +38,7 @@ export function CustomerModal({
   onSave,
   onChange,
 }: CustomerModalProps) {
+  const { t } = useTranslations();
   if (!isOpen) return null;
 
   const serviceOfficeFixed = fixedServiceOfficeId != null && fixedServiceOfficeId > 0;
@@ -47,7 +49,7 @@ export function CustomerModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div
         className="absolute inset-0 backdrop-blur-sm"
         style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
@@ -68,7 +70,7 @@ export function CustomerModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <label htmlFor="customer_name" className="block text-sm font-medium text-slate-700 mb-2">
-                Customer Name <span className="text-red-500">*</span>
+                {t("Customer Name")} <span className="text-red-500">*</span>
               </label>
               <input
                 id="customer_name"

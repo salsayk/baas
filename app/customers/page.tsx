@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "@/app/context/TranslationContext";
 import { NotificationContainer, useNotifications } from "@/app/components/notifications";
 import { Sidebar, SidebarProvider, MobileMenuButton } from "@/app/components/sidebar";
 import { CustomerModal } from "@/database/customer/CustomerModal";
@@ -31,6 +32,7 @@ const defaultForm: CreateCustomerInput & { status: number } = {
 };
 
 function CustomersContent() {
+  const { t } = useTranslations();
   const searchParams = useSearchParams();
   const fixedServiceOfficeIdParam = searchParams.get("service_office_id");
   const fixedServiceOfficeId = fixedServiceOfficeIdParam ? parseInt(fixedServiceOfficeIdParam, 10) : null;
@@ -158,6 +160,25 @@ function CustomersContent() {
     setIsModalOpen(true);
   };
 
+  const openCopyModal = (customer: Customer) => {
+    setEditingCustomer(null);
+    setForm({
+      customer_name: "copy of " + (customer.customer_name ?? ""),
+      service_office_id: customer.service_office_id,
+      legal_id: customer.legal_id,
+      mobile_phone: customer.mobile_phone,
+      secondary_phone: customer.secondary_phone,
+      email_address: customer.email_address,
+      address_country: customer.address_country,
+      address_city: customer.address_city,
+      address_street: customer.address_street,
+      address_street_number: customer.address_street_number,
+      address_zip_code: customer.address_zip_code,
+      status: customer.status,
+    });
+    setIsModalOpen(true);
+  };
+
   const handleSave = async () => {
     if (!form.customer_name?.trim() || !form.email_address?.trim() || !form.service_office_id) return;
     setIsSaving(true);
@@ -185,8 +206,10 @@ function CustomersContent() {
           throw new Error(data.error || "Failed to update");
         }
         const updated = await res.json();
-        setCustomers((prev) => prev.map((c) => (c.customer_id === updated.customer_id ? updated : c)));
+        const updatedId = Number(updated.customer_id);
+        setCustomers((prev) => prev.map((c) => (Number(c.customer_id) === updatedId ? { ...c, ...updated, customer_id: updatedId } : c)));
         notifyUpdate(`"${updated.customer_name}" updated`);
+        await fetchCustomers();
       } else {
         const res = await fetch("/api/customers", {
           method: "POST",
@@ -323,22 +346,34 @@ function CustomersContent() {
                         <td className="px-4 lg:px-6 py-4">
                           <div className="flex items-center justify-end gap-1">
                             <button
-                              onClick={() => {
-                                if (!selectedOffice) return;
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const office = serviceOffices.find((s) => s.service_office_id === customer.service_office_id);
                                 setProjectsContext({
                                   service_office_id: customer.service_office_id,
-                                  service_office_name: selectedOffice.service_office_name,
+                                  service_office_name: office?.service_office_name ?? "",
                                   customer_id: customer.customer_id,
                                   customer_name: customer.customer_name,
                                 });
                               }}
                               className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600"
-                              title="Manage projects"
+                              title={t("Manage projects")}
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M2 20h20"/>
                                 <path d="M5 20V9l7-5 7 5v11"/>
                                 <path d="M9 13h6"/>
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => openCopyModal(customer)}
+                              className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                              title="Copy"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                               </svg>
                             </button>
                             <button

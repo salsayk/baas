@@ -18,7 +18,8 @@ function translateTextNode(node: Text, dictionary: Record<string, string>) {
     textOriginalMap.set(node, current);
   }
 
-  const match = original.match(/^(\s*)(.*?)(\s*)$/s);
+  // Avoid the RegExp "dotAll" (/s) flag to support ES2017 target
+  const match = original.match(/^(\s*)([\s\S]*?)(\s*)$/);
   if (!match) return;
   const leading = match[1] ?? "";
   const core = match[2] ?? "";

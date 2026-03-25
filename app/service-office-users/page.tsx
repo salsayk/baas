@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "@/app/context/TranslationContext";
 import { NotificationContainer, useNotifications } from "@/app/components/notifications";
 import { Sidebar, SidebarProvider, MobileMenuButton } from "@/app/components/sidebar";
 import { ServiceOfficeUserModal } from "@/database/service_office_users/ServiceOfficeUserModal";
@@ -9,7 +10,6 @@ import { AssignCustomersProjectsWizard } from "@/database/service_office_users/A
 import type {
   CreateServiceOfficeUserInput,
   ServiceOfficeUser,
-  ServiceOfficeUserFormState,
 } from "@/database/service_office_users/types";
 import type { ServiceOffice } from "@/database/Service_Offices/types";
 
@@ -32,6 +32,11 @@ const defaultForm: CreateServiceOfficeUserInput & { status: number } = {
 };
 
 function ServiceOfficeUsersContent() {
+  const { t, refreshTranslations } = useTranslations();
+
+  useEffect(() => {
+    refreshTranslations();
+  }, [refreshTranslations]);
   const searchParams = useSearchParams();
   const fixedServiceOfficeIdParam = searchParams.get("service_office_id");
   const fixedServiceOfficeId = fixedServiceOfficeIdParam ? parseInt(fixedServiceOfficeIdParam, 10) : null;
@@ -42,7 +47,7 @@ function ServiceOfficeUsersContent() {
   const [users, setUsers] = useState<ServiceOfficeUser[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<ServiceOfficeUser | null>(null);
-  const [form, setForm] = useState<ServiceOfficeUserFormState>(defaultForm);
+  const [form, setForm] = useState<CreateServiceOfficeUserInput & { status: number }>(defaultForm);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [assignWizardUser, setAssignWizardUser] = useState<ServiceOfficeUser | null>(null);
   const [isLoadingOffices, setIsLoadingOffices] = useState(true);
@@ -162,6 +167,22 @@ function ServiceOfficeUsersContent() {
     setIsModalOpen(true);
   };
 
+  const openCopyModal = (user: ServiceOfficeUser) => {
+    setEditingUser(null);
+    setForm({
+      user_name: "copy of " + (user.user_name ?? ""),
+      user_type: user.user_type,
+      user_professional_grade: user.user_professional_grade,
+      service_office_id: user.service_office_id,
+      subcontractor_id: user.subcontractor_id,
+      mobile_phone: user.mobile_phone,
+      secondary_phone: user.secondary_phone,
+      email_address: user.email_address,
+      status: user.status,
+    });
+    setIsModalOpen(true);
+  };
+
   const handleSave = async () => {
     if (!form.user_name?.trim() || !form.mobile_phone?.trim() || !form.email_address?.trim()) return;
     setIsSaving(true);
@@ -186,10 +207,12 @@ function ServiceOfficeUsersContent() {
           throw new Error(data.error || "Failed to update");
         }
         const updated = await res.json();
+        const updatedId = Number(updated.service_office_user_id);
         setUsers((prev) =>
-          prev.map((u) => (u.service_office_user_id === updated.service_office_user_id ? updated : u))
+          prev.map((u) => (Number(u.service_office_user_id) === updatedId ? { ...u, ...updated, service_office_user_id: updatedId } : u))
         );
         notifyUpdate(`"${updated.user_name}" updated`);
+        await fetchUsers();
       } else {
         const res = await fetch("/api/service-office-users", {
           method: "POST",
@@ -241,7 +264,7 @@ function ServiceOfficeUsersContent() {
             <div className="flex items-center gap-2 text-sm">
               <span className="text-slate-400 hidden sm:inline">Pages</span>
               <span className="text-slate-300 hidden sm:inline">/</span>
-              <span className="text-slate-700 font-medium">Service Office Users</span>
+              <span className="text-slate-700 font-medium">{t("Service Office Users")}</span>
             </div>
           </div>
         </header>
@@ -259,9 +282,9 @@ function ServiceOfficeUsersContent() {
             <div className="p-4 lg:p-6 border-b border-slate-100">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h2 className="text-lg lg:text-xl font-bold text-slate-900">By service office</h2>
+                  <h2 className="text-lg lg:text-xl font-bold text-slate-900">{t("By service office")}</h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Select a service office to view and manage users
+                    {t("Select a service office to view and manage users")}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -271,7 +294,7 @@ function ServiceOfficeUsersContent() {
                     className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-900 min-w-[220px]"
                     disabled={isLoadingOffices || !!fixedServiceOfficeId}
                   >
-                    <option value="">Select service office</option>
+                    <option value="">{t("Select service office")}</option>
                     {serviceOffices.map((s) => (
                       <option key={s.service_office_id} value={s.service_office_id}>
                         {s.service_office_name}
@@ -283,7 +306,7 @@ function ServiceOfficeUsersContent() {
                     disabled={!selectedServiceOfficeId || isLoadingOffices}
                     className="px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
                   >
-                    Add User
+                    {t("Add User")}
                   </button>
                 </div>
               </div>
@@ -319,7 +342,7 @@ function ServiceOfficeUsersContent() {
                             <button
                               onClick={() => setAssignWizardUser(user)}
                               className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600"
-                              title="Assign Customers & Projects"
+                              title={t("Assign Customers & Projects")}
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
@@ -328,6 +351,12 @@ function ServiceOfficeUsersContent() {
                                 <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                                 <path d="M12 11v6"/>
                                 <path d="M9 14h6"/>
+                              </svg>
+                            </button>
+                            <button onClick={() => openCopyModal(user)} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600" title="Copy">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                               </svg>
                             </button>
                             <button onClick={() => openEditModal(user)} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600" title="Edit">
@@ -383,7 +412,14 @@ function ServiceOfficeUsersContent() {
         isSaving={isSaving}
         onClose={resetModal}
         onSave={handleSave}
-        onChange={(updates) => setForm((prev) => ({ ...prev, ...updates }))}
+        onChange={(updates) =>
+          setForm((prev) => ({
+            ...prev,
+            ...updates,
+            user_professional_grade:
+              updates.user_professional_grade == null ? prev.user_professional_grade : updates.user_professional_grade,
+          }))
+        }
         onSubcontractorAdded={(sub) =>
           setSubcontractors((prev) =>
             prev.some((s) => s.subcontractor_id === sub.subcontractor_id) ? prev : [...prev, sub]

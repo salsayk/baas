@@ -111,12 +111,24 @@ export async function POST(request: Request) {
 
       await client.query(`DELETE FROM service_office_users_data_authorization WHERE user_id = $1`, [serviceOfficeUserId]);
 
+      const effectiveAssignAllFutureCustomers = !!assignAllFutureCustomers && !!serviceOfficeId;
+
+      const effectiveCustomers = effectiveAssignAllFutureCustomers ? [] : customers;
+      // projects must not include any project whose customer is in allFutureProjectsCustomerIds (frontend sends only type 101 per such customer)
+      const effectiveProjects = effectiveAssignAllFutureCustomers ? [] : projects;
+      const effectiveContracts = effectiveAssignAllFutureCustomers ? [] : contracts;
+      const effectiveAllFutureProjectsCustomerIds = effectiveAssignAllFutureCustomers ? [] : allFutureProjectsCustomerIds;
+
       const rows: Array<{ type: number; id: number }> = [
-        ...customers.map((id) => ({ type: ENTITY_TYPE_CUSTOMER, id })),
-        ...projects.map((id) => ({ type: ENTITY_TYPE_PROJECT, id })),
-        ...contracts.map((id) => ({ type: ENTITY_TYPE_CONTRACT, id })),
-        ...(assignAllFutureCustomers && serviceOfficeId ? [{ type: ENTITY_TYPE_ALL_FUTURE_CUSTOMERS, id: serviceOfficeId }] : []),
-        ...(Array.isArray(allFutureProjectsCustomerIds) ? allFutureProjectsCustomerIds.map((id) => ({ type: ENTITY_TYPE_ALL_FUTURE_PROJECTS_CUSTOMER, id })) : []),
+        ...effectiveCustomers.map((id) => ({ type: ENTITY_TYPE_CUSTOMER, id })),
+        ...effectiveProjects.map((id) => ({ type: ENTITY_TYPE_PROJECT, id })),
+        ...effectiveContracts.map((id) => ({ type: ENTITY_TYPE_CONTRACT, id })),
+        ...(effectiveAssignAllFutureCustomers && serviceOfficeId
+          ? [{ type: ENTITY_TYPE_ALL_FUTURE_CUSTOMERS, id: serviceOfficeId }]
+          : []),
+        ...(Array.isArray(effectiveAllFutureProjectsCustomerIds)
+          ? effectiveAllFutureProjectsCustomerIds.map((id) => ({ type: ENTITY_TYPE_ALL_FUTURE_PROJECTS_CUSTOMER, id }))
+          : []),
       ];
 
       if (rows.length > 0) {

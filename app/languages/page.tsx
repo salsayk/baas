@@ -96,8 +96,9 @@ function LanguagesContent() {
           throw new Error(data.error || "Failed to update");
         }
         const updated = await res.json();
+        const updatedId = Number(updated.id);
         setLanguages((prev) =>
-          prev.map((l) => (l.id === updated.id ? updated : l))
+          prev.map((l) => (Number(l.id) === updatedId ? { ...l, ...updated, id: updatedId } : l))
         );
         notifyUpdate(`Language "${updated.language_name}" updated`);
         refreshLanguages();

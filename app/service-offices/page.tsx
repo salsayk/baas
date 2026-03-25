@@ -135,6 +135,18 @@ function ServiceOfficesContent() {
     setIsModalOpen(true);
   };
 
+  const openCopyModal = (office: ServiceOffice) => {
+    setEditingOffice(null);
+    setForm({
+      service_office_name: "copy of " + (office.service_office_name ?? ""),
+      service_office_description: office.service_office_description ?? null,
+      account_id: office.account_id,
+      country: office.country ?? null,
+      status: office.status,
+    });
+    setIsModalOpen(true);
+  };
+
   const handleSave = async () => {
     if (!form.service_office_name?.trim() || !form.account_id) return;
     setIsSaving(true);
@@ -155,10 +167,12 @@ function ServiceOfficesContent() {
           throw new Error(data.error || "Failed to update");
         }
         const updated = await res.json();
+        const updatedId = Number(updated.service_office_id);
         setOffices((prev) =>
-          prev.map((o) => (o.service_office_id === updated.service_office_id ? updated : o))
+          prev.map((o) => (Number(o.service_office_id) === updatedId ? { ...o, ...updated, service_office_id: updatedId } : o))
         );
         notifyUpdate(`"${updated.service_office_name}" updated`);
+        await fetchOffices();
       } else {
         const res = await fetch("/api/service-offices", {
           method: "POST",
@@ -398,6 +412,16 @@ function ServiceOfficesContent() {
                                 <circle cx="9" cy="7" r="4"/>
                                 <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
                                 <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => openCopyModal(office)}
+                              className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                              title="Copy"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                               </svg>
                             </button>
                             <button

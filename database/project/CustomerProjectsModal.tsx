@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "@/app/context/TranslationContext";
 import { ProjectModal } from "@/database/project/ProjectModal";
 import type { Project, CreateProjectInput } from "@/database/project/types";
 
@@ -31,6 +32,7 @@ interface CustomerProjectsModalProps {
 }
 
 export function CustomerProjectsModal({ isOpen, context, onClose, onNotify }: CustomerProjectsModalProps) {
+  const { t } = useTranslations();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -151,13 +153,13 @@ export function CustomerProjectsModal({ isOpen, context, onClose, onNotify }: Cu
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[40] flex items-center justify-center p-4">
         <div className="absolute inset-0 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.4)" }} onClick={onClose} aria-hidden="true" />
         <div className="relative w-full max-w-5xl max-h-[96vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
           <div className="p-4 lg:p-6 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Projects — {context?.customer_name ?? ""}</h2>
-              <p className="mt-1 text-sm text-slate-500">Manage projects for this customer</p>
+              <h2 className="text-xl font-bold text-slate-900">{t("Projects")} — {context?.customer_name ?? ""}</h2>
+              <p className="mt-1 text-sm text-slate-500">{t("Manage projects for this customer")}</p>
               <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-2xl">
                 <select
                   value={context?.service_office_id ?? ""}
@@ -181,7 +183,7 @@ export function CustomerProjectsModal({ isOpen, context, onClose, onNotify }: Cu
                 disabled={!context}
                 className="px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
               >
-                Add Project
+                {t("Add Project")}
               </button>
               <button
                 onClick={onClose}
@@ -201,7 +203,7 @@ export function CustomerProjectsModal({ isOpen, context, onClose, onNotify }: Cu
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/50">
                   <th className="px-4 lg:px-6 py-3 text-start text-xs font-semibold text-slate-500 uppercase">Name</th>
-                  <th className="px-4 lg:px-6 py-3 text-start text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">Scope</th>
+                  <th className="px-4 lg:px-6 py-3 text-start text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">{t("Scope")}</th>
                   <th className="px-4 lg:px-6 py-3 text-start text-xs font-semibold text-slate-500 uppercase">Status</th>
                   <th className="px-4 lg:px-6 py-3 text-end text-xs font-semibold text-slate-500 uppercase">Actions</th>
                 </tr>
@@ -210,7 +212,7 @@ export function CustomerProjectsModal({ isOpen, context, onClose, onNotify }: Cu
                 {isLoading ? (
                   <tr><td colSpan={4} className="px-4 lg:px-6 py-12 text-center text-slate-500">Loading...</td></tr>
                 ) : projects.length === 0 ? (
-                  <tr><td colSpan={4} className="px-4 lg:px-6 py-12 text-center text-slate-500">No projects yet.</td></tr>
+                  <tr><td colSpan={4} className="px-4 lg:px-6 py-12 text-center text-slate-500">{t("No projects yet.")}</td></tr>
                 ) : (
                   projects.map((project) => (
                     <tr key={project.project_id} className="hover:bg-slate-50/50">

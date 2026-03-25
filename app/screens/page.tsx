@@ -92,13 +92,15 @@ function ScreensContent() {
           throw new Error(data.error || "Failed to update");
         }
         const updated = await res.json();
+        const updatedId = Number(updated.screen_id);
         setScreens((prev) =>
-          prev.map((s) => (s.screen_id === updated.screen_id ? updated : s))
+          prev.map((s) => (Number(s.screen_id) === updatedId ? { ...s, ...updated, screen_id: updatedId } : s))
         );
-        if (translationScreen?.screen_id === updated.screen_id) {
-          setTranslationScreen(updated);
+        if (translationScreen?.screen_id === updatedId) {
+          setTranslationScreen({ ...updated, screen_id: updatedId });
         }
         notifyUpdate(`Screen "${updated.screen_name}" updated`);
+        await fetchScreens();
       } else {
         const res = await fetch("/api/ui-screens", {
           method: "POST",

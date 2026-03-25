@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Timese - App Screens Presentation</title>
+    <link rel="stylesheet" href="https://unpkg.com/reveal.js/dist/reveal.css" />
+    <link rel="stylesheet" href="https://unpkg.com/reveal.js/dist/theme/black.css" id="theme" />
+    <style>
+      .slide-img {
+        width: 100%;
+        max-height: 420px;
+        object-fit: contain;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 10px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+      }
+      .fields-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.35rem;
+        font-size: 0.85em;
+      }
+      ul {
+        margin: 0.3rem 0 0.2rem 1.1rem !important;
+      }
+      li {
+        margin: 0.15rem 0 !important;
+      }
+      .small-muted {
+        opacity: 0.85;
+        font-size: 0.9em;
+      }
+      .codeish {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 0.9em;
+        background: rgba(255, 255, 255, 0.06);
+        padding: 0.1rem 0.35rem;
+        border-radius: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        white-space: nowrap;
+      }
+      /* For long slide notes */
+      .reveal .slides section {
+        text-align: left;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <!-- ========================================================= -->
+        <!-- Title & hierarchy -->
+        <!-- ========================================================= -->
+        <section>
+          <h1>Timese</h1>
+          <p class="small-muted">Application screens (pages + modals/wizards)</p>
+          <p class="small-muted">One slide per screen. Each slide includes a screenshot placeholder.</p>
+          <p class="small-muted">
+            Screenshot placeholders expect images in <span class="codeish">./screenshots/</span> with names like
+            <span class="codeish">pages-accounts.png</span> or <span class="codeish">modal-account.png</span>.
+          </p>
+        </section>
+
+        <section>
+          <h2>Hierarchy Overview</h2>
+          <ul>
+            <li><b>Account</b> (tenant root) owns one or more <b>Service Offices</b>.</li>
+            <li>Each <b>Service Office</b> manages: <b>Customers</b>, <b>Projects</b>, <b>Contracts</b>, and <b>Subcontractors</b>.</li>
+            <li><b>Service Office Users</b> are employees/subcontractors who get data access via assignments.</li>
+          </ul>
+          <p class="small-muted">Access is enforced server-side by the API using the signed-in user’s account ownership.</p>
+        </section>
+
+        <section>
+          <h2>Data Assignment Model</h2>
+          <p class="small-muted">Service office user access is stored in <span class="codeish">service_office_users_data_authorization</span> as “entity type + entity id”.</p>
+          <ul>
+            <li><span class="codeish">2</span> = customer (entity_id = customer_id)</li>
+            <li><span class="codeish">3</span> = project (entity_id = project_id)</li>
+            <li><span class="codeish">4</span> = contract (entity_id = contract_id)</li>
+            <li><span class="codeish">100</span> = all future customers (entity_id = service_office_id)</li>
+            <li><span class="codeish">101</span> = all future projects for a customer (entity_id = customer_id)</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>UI Screens & Localization</h2>
+          <ul>
+            <li><b>Screens</b> define logical UI screen names and optional descriptions.</li>
+            <li><b>Screen translations</b> store per-language names/descriptions.</li>
+            <li><b>Screen permissions</b> map user types to permissions per screen.</li>
+            <li><b>System lookups</b> and <b>Lookup values</b> power enumerations across the UI.</li>
+            <li><b>Languages</b> define direction (LTR/RTL).</li>
+          </ul>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- Regular pages (Next.js routes)
+             One slide per screen route.
+        <!-- ========================================================= -->
+        <section>
+          <h2>Home</h2>
+          <p class="small-muted">Route: <span class="codeish">/</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/pages-home.png" alt="Home screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Landing page and authentication entry point.</p>
+          <p><b>What to fill:</b> Sign in with Google (handled by NextAuth).</p>
+        </section>
+
+        <section>
+          <h2>Auth Error</h2>
+          <p class="small-muted">Route: <span class="codeish">/auth/auth-error</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/pages-auth-error.png" alt="Auth Error screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Displays user-friendly error state when authentication fails.</p>
+          <p><b>What to fill:</b> None.</p>
+        </section>
+
+        <section>
+          <h2>Protected</h2>
+          <p class="small-muted">Route: <span class="codeish">/protected</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/pages-protected.png" alt="Protected screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Example/utility protected route for testing the auth gate.</p>
+          <p><b>What to fill:</b> None (depends on page content).</p>
+        </section>
+
+        <section>
+          <h2>Dashboards</h2>
+          <p class="small-muted">Route: <span class="codeish">/dashboards</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/pages-dashboards.png" alt="Dashboards screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Main data overview after login.</p>
+          <p><b>What to fill:</b> Usually none; data is loaded from APIs.</p>
+        </section>
+
+        <section>
+          <h2>Accounts</h2>
+          <p class="small-muted">Route: <span class="codeish">/accounts</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/pages-accounts.png" alt="Accounts screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Manage tenant accounts and subscription/billing-level metadata.</p>
+          <p><b>What to fill:</b> Typically via <span class="codeish">Account modal/wizard</span> slides.</p>
+        </section>
+
+        <section>
+          <h2>Service Offices</h2>
+          <p class="small-muted">Route: <span class="codeish">/service-offices</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/pages-service-offices.png" alt="Service Offices screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Manage service offices under an account.</p>
+          <p><b>What to fill:</b> Typically via <span class="codeish">Service Office modal</span> fields.</p>
+        </section>
+
+        <section>
+          <h2>Customers</h2>
+          <p class="small-muted">Route: <span class="codeish">/customers</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/pages-customers.png" alt="Customers screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Manage customers for a service office.</p>
+          <p><b>What to fill:</b> via <span class="codeish">Customer modal</span> fields.</p>
+        </section>
+
+        <section>
+          <h2>Projects</h2>
+          <p class="small-muted">Route: <span class="codeish">/projects</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/pages-projects.png" alt="Projects screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Manage projects and project-scoped contracts/assignments.</p>
+          <p><b>What to fill:</b> via <span class="codeish">Project modal</span> and <span class="codeish">Assign Contracts</span> modal.</p>
+        </section>
+
+        <section>
+          <h2>Contracts</h2>
+          <p class="small-muted">Route: <span class="codeish">/contracts</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/pages-contracts.png" alt="Contracts screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Manage contracts; associate contracts to projects for ordering/display.</p>
+          <p><b>What to fill:</b> via <span class="codeish">Contract modal</span>.</p>
+        </section>
+
+        <section>
+          <h2>Subcontractors</h2>
+          <p class="small-muted">Route: <span class="codeish">/subcontractors</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/pages-subcontractors.png" alt="Subcontractors screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Manage subcontractor entities belonging to service offices.</p>
+          <p><b>What to fill:</b> via <span class="codeish">Subcontractor modal</span>.</p>
+        </section>
+
+        <section>
+          <h2>Service Office Users</h2>
+          <p class="small-muted">Route: <span class="codeish">/service-office-users</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/pages-service-office-users.png" alt="Service Office Users screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Manage service office employees/users and their data access assignments.</p>
+          <p><b>What to fill:</b> via <span class="codeish">Service Office User modal</span> + <span class="codeish">Assign Customers & Projects wizard</span>.</p>
+        </section>
+
+        <section>
+          <h2>Screens</h2>
+          <p class="small-muted">Route: <span class="codeish">/screens</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/pages-screens.png" alt="Screens screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Define UI screens available in the system.</p>
+          <p><b>What to fill:</b> via <span class="codeish">Screen modal</span> + translations + permissions modals.</p>
+        </section>
+
+        <section>
+          <h2>System Lookups</h2>
+          <p class="small-muted">Route: <span class="codeish">/system-lookups</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/pages-system-lookups.png" alt="System Lookups screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Manage lookup tables (enumerations) used across forms.</p>
+          <p><b>What to fill:</b> via <span class="codeish">System Lookup modal</span> and <span class="codeish">Lookup Values modal</span>.</p>
+        </section>
+
+        <section>
+          <h2>Languages</h2>
+          <p class="small-muted">Route: <span class="codeish">/languages</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/pages-languages.png" alt="Languages screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Define languages available for translations.</p>
+          <p><b>What to fill:</b> via <span class="codeish">Language modal</span>.</p>
+        </section>
+
+        <section>
+          <h2>Language Labels</h2>
+          <p class="small-muted">Route: <span class="codeish">/language-labels</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/pages-language-labels.png" alt="Language Labels screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Manage translated labels (depends on implementation).</p>
+          <p><b>What to fill:</b> via relevant translation flows.</p>
+        </section>
+
+        <section>
+          <h2>Use Cases</h2>
+          <p class="small-muted">Route: <span class="codeish">/use-cases</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/pages-use-cases.png" alt="Use Cases screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Documented scenarios and workflows.</p>
+          <p><b>What to fill:</b> None (usually content-only).</p>
+        </section>
+
+        <section>
+          <h2>Playground</h2>
+          <p class="small-muted">Route: <span class="codeish">/playground</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/pages-playground.png" alt="Playground screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Experimental area for developers/admins.</p>
+          <p><b>What to fill:</b> Depends on playground widgets.</p>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- Modals & Wizards (one slide per component)
+        <!-- ========================================================= -->
+        <section>
+          <h2>Account Modal</h2>
+          <p class="small-muted">Component: <span class="codeish">AccountModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-account.png" alt="Account modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Create or edit an account (tenant-level info + optional credit card fields in this UI).</p>
+          <div class="fields-grid">
+            <div><b>Required:</b> <span class="codeish">account_name</span>, <span class="codeish">mobile_phone</span>, <span class="codeish">email_address</span></div>
+            <div><b>Inputs:</b> <span class="codeish">secondary_phone</span>, <span class="codeish">card_holder_name</span>, <span class="codeish">card_number</span>, <span class="codeish">card_expiry_month</span>, <span class="codeish">card_expiry_year</span>, <span class="codeish">card_cvv</span></div>
+            <div><b>Status:</b> choose via status buttons (<span class="codeish">status</span>)</div>
+          </div>
+        </section>
+
+        <section>
+          <h2>Account Wizard</h2>
+          <p class="small-muted">Component: <span class="codeish">AccountWizardModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-account-wizard.png" alt="Account wizard screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Guided creation of an account plus its first service office plus an initial service office user (with email verification step).</p>
+          <ul>
+            <li><b>Tab 0 (Account):</b> fill <span class="codeish">account_name</span>, <span class="codeish">mobile_phone</span>, <span class="codeish">email_address</span>, <span class="codeish">status</span> (plus optional card fields)</li>
+            <li><b>Tab 1 (Service Office):</b> fill <span class="codeish">service_office_name</span>, <span class="codeish">status</span> (plus optional description/country)</li>
+            <li><b>Tab 2 (User):</b> fill <span class="codeish">user_name</span>, <span class="codeish">user_type</span>, <span class="codeish">user_professional_grade</span>, <span class="codeish">mobile_phone</span>, <span class="codeish">email_address</span>, <span class="codeish">status</span></li>
+            <li><b>Email verification:</b> handled via the <span class="codeish">EmailVerificationModal</span> flow.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Email Verification</h2>
+          <p class="small-muted">Component: <span class="codeish">EmailVerificationModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-email-verification.png" alt="Email verification screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Confirm a 6-digit code sent to the user email.</p>
+          <ul>
+            <li><span class="codeish">verification-code</span> (6 digits)</li>
+            <li>Resend code button (cooldown handled in modal)</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Service Office Modal</h2>
+          <p class="small-muted">Component: <span class="codeish">ServiceOfficeModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-service-office.png" alt="Service office modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Create or edit a service office under an account.</p>
+          <div class="fields-grid">
+            <div><b>Required:</b> <span class="codeish">service_office_name</span>, <span class="codeish">account_id</span> (unless fixed), <span class="codeish">status</span></div>
+            <div><b>Optional:</b> <span class="codeish">service_office_description</span>, <span class="codeish">country</span></div>
+          </div>
+        </section>
+
+        <section>
+          <h2>Account Service Offices</h2>
+          <p class="small-muted">Component: <span class="codeish">AccountServiceOfficesModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-account-service-offices.png" alt="Account service offices modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Manage service offices belonging to a single account.</p>
+          <p class="small-muted"><b>Fields:</b> Add/Edit delegates to <span class="codeish">ServiceOfficeModal</span> (use its fields).</p>
+        </section>
+
+        <section>
+          <h2>Customer Modal</h2>
+          <p class="small-muted">Component: <span class="codeish">CustomerModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-customer.png" alt="Customer modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Create or edit a customer within a service office.</p>
+          <div class="fields-grid">
+            <div><b>Required:</b> <span class="codeish">customer_name</span>, <span class="codeish">service_office_id</span>, <span class="codeish">email_address</span></div>
+            <div><b>Optional:</b> <span class="codeish">legal_id</span>, <span class="codeish">mobile_phone</span>, <span class="codeish">secondary_phone</span></div>
+            <div><b>Address:</b> <span class="codeish">address_country</span>, <span class="codeish">address_city</span>, <span class="codeish">address_street</span>, <span class="codeish">address_street_number</span>, <span class="codeish">address_zip_code</span></div>
+            <div><b>Status:</b> status buttons set <span class="codeish">status</span></div>
+          </div>
+        </section>
+
+        <section>
+          <h2>Service Office Customers</h2>
+          <p class="small-muted">Component: <span class="codeish">ServiceOfficeCustomersModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-service-office-customers.png" alt="Service office customers modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Manage the customer list inside a service office (table + open customer modal).</p>
+          <p class="small-muted"><b>Fields:</b> Add/Edit delegates to <span class="codeish">CustomerModal</span>.</p>
+        </section>
+
+        <section>
+          <h2>Project Modal</h2>
+          <p class="small-muted">Component: <span class="codeish">ProjectModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-project.png" alt="Project modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Create or edit a project tied to a customer and service office.</p>
+          <div class="fields-grid">
+            <div><b>Required:</b> <span class="codeish">project_name</span>, <span class="codeish">service_office_id</span>, <span class="codeish">customer_id</span>, <span class="codeish">project_scope_description</span>, <span class="codeish">status</span></div>
+          </div>
+        </section>
+
+        <section>
+          <h2>Customer Projects</h2>
+          <p class="small-muted">Component: <span class="codeish">CustomerProjectsModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-customer-projects.png" alt="Customer projects modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Manage projects for a given customer.</p>
+          <p class="small-muted"><b>Fields:</b> Add/Edit delegates to <span class="codeish">ProjectModal</span>.</p>
+        </section>
+
+        <section>
+          <h2>Contract Modal</h2>
+          <p class="small-muted">Component: <span class="codeish">ContractModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-contract.png" alt="Contract modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Create or edit a contract, including “PP Proforma” fields.</p>
+          <ul>
+            <li><b>Contract Details tab:</b> <span class="codeish">contract_name</span>, <span class="codeish">contract_description</span> (optional), <span class="codeish">customer_id</span>, <span class="codeish">contract_type</span>, <span class="codeish">status</span>, <span class="codeish">contract_start_date</span></li>
+            <li><b>Amount fields (if enabled by contract type):</b> <span class="codeish">contract_amount_value</span>, <span class="codeish">contract_currency</span></li>
+            <li><b>PP Proforma tab:</b> <span class="codeish">pp_proforma_recurrence</span>, <span class="codeish">pp_proforma_occasion</span>, <span class="codeish">pp_initial_payment_reached_indicator</span>, <span class="codeish">pp_initial_amount_value</span>, <span class="codeish">pp_upper_cap_reached_indicator</span>, <span class="codeish">pp_upper_cap_amount_value</span>, <span class="codeish">pp_recurrence_initial_payment_reached_indicator</span>, <span class="codeish">pp_recurrence_initial_amount_value</span>, <span class="codeish">pp_recurrence_upper_cap_reached_indicator</span>, <span class="codeish">pp_recurrence_upper_cap_amount_value</span></li>
+          </ul>
+          <p class="small-muted">Validation ensures required fields are present and focuses the first invalid field.</p>
+        </section>
+
+        <section>
+          <h2>Assign Contracts (Project)</h2>
+          <p class="small-muted">Component: <span class="codeish">AssignContractsModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-assign-contracts.png" alt="Assign contracts modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> For a selected project, pick contracts to assign and drag to reorder the assignment list.</p>
+          <ul>
+            <li>Checkbox per contract (select/deselect)</li>
+            <li>Drag selected contracts to change ordering</li>
+            <li>Save creates/updates project–contract pairs in the system</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Subcontractor Modal</h2>
+          <p class="small-muted">Component: <span class="codeish">SubcontractorModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-subcontractor.png" alt="Subcontractor modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Create or edit a subcontractor tied to a service office.</p>
+          <div class="fields-grid">
+            <div><b>Required:</b> <span class="codeish">subcontractor_name</span>, <span class="codeish">service_office_id</span></div>
+            <div><b>Optional:</b> <span class="codeish">contact_person_name</span>, <span class="codeish">contact_person_phone</span>, <span class="codeish">contact_person_email</span>, <span class="codeish">contact_person_address</span></div>
+            <div><b>Status:</b> status buttons set <span class="codeish">status</span></div>
+          </div>
+        </section>
+
+        <section>
+          <h2>Service Office Subcontractors</h2>
+          <p class="small-muted">Component: <span class="codeish">ServiceOfficeSubcontractorsModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-service-office-subcontractors.png" alt="Service office subcontractors modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Manage subcontractors within a service office.</p>
+          <p class="small-muted"><b>Fields:</b> Add/Edit delegates to <span class="codeish">SubcontractorModal</span>.</p>
+        </section>
+
+        <section>
+          <h2>Service Office User Modal</h2>
+          <p class="small-muted">Component: <span class="codeish">ServiceOfficeUserModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-service-office-user.png" alt="Service office user modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Create or edit a service office user (employee) and optionally link a subcontractor.</p>
+          <ul>
+            <li><span class="codeish">user_name</span> (required)</li>
+            <li><span class="codeish">user_type</span> (required; lookup)</li>
+            <li><span class="codeish">user_professional_grade</span> (required; lookup)</li>
+            <li><span class="codeish">service_office_id</span> (required; fixed/readonly in embedded contexts)</li>
+            <li><span class="codeish">subcontractor_id</span> (required only when user type indicates subcontractor)</li>
+            <li><span class="codeish">mobile_phone</span>, <span class="codeish">secondary_phone</span>, <span class="codeish">email_address</span></li>
+            <li><span class="codeish">status</span> buttons</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Service Office Users</h2>
+          <p class="small-muted">Component: <span class="codeish">ServiceOfficeUsersModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-service-office-users.png" alt="Service office users modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Table view for all users of a service office, with Add/Edit user actions.</p>
+          <p class="small-muted"><b>Fields:</b> Add/Edit delegates to <span class="codeish">ServiceOfficeUserModal</span>.</p>
+        </section>
+
+        <section>
+          <h2>Assign Customers & Projects Wizard</h2>
+          <p class="small-muted">Component: <span class="codeish">AssignCustomersProjectsWizard</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-assign-customers-projects.png" alt="Assign customers & projects wizard screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Assign data access for a service office user across customers, projects, and contracts.</p>
+          <ul>
+            <li><b>Step 1 (Customers):</b>
+              <ul>
+                <li>Toggle <span class="codeish">Assign all future customers automatically</span></li>
+                <li>Customer tiles: select/deselect customers (disabled when future-customer toggle is ON)</li>
+                <li>Toggle <span class="codeish">Assign all current customers</span> (managed/derived)</li>
+              </ul>
+            </li>
+            <li><b>Step 2 (Customers & Projects):</b>
+              <ul>
+                <li>Per-customer accordion “Assign all future projects” toggle</li>
+                <li>Project checkboxes (disabled when future-customer mode is ON)</li>
+              </ul>
+            </li>
+            <li><b>Step 3 (Contracts):</b>
+              <ul>
+                <li>Project-linked contracts are displayed based on selected projects</li>
+                <li>Independent customer contracts checkboxes: select contracts that are not implied by project selection</li>
+              </ul>
+            </li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>System Lookup Modal</h2>
+          <p class="small-muted">Component: <span class="codeish">SystemLookupModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-system-lookup.png" alt="System lookup modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Create or edit a lookup table used for enumerations.</p>
+          <ul>
+            <li><span class="codeish">lookup_table_name</span> (required)</li>
+            <li><span class="codeish">lookup_table_description</span> (optional)</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Lookup Values Modal</h2>
+          <p class="small-muted">Component: <span class="codeish">LookupValuesModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-lookup-values.png" alt="Lookup values modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Manage values in a specific lookup table (and optionally edit translations).</p>
+          <ul>
+            <li><b>Add/Edit value:</b> <span class="codeish">value_id</span>, <span class="codeish">value_name</span></li>
+            <li><b>Translations tab:</b>
+              <ul>
+                <li>Select language</li>
+                <li>Lookup translation fields: <span class="codeish">name</span>, <span class="codeish">description</span></li>
+                <li>Per value translation: <span class="codeish">value_name</span> (per selected value)</li>
+              </ul>
+            </li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Screen Modal</h2>
+          <p class="small-muted">Component: <span class="codeish">ScreenModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-screen.png" alt="Screen modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Create or edit a UI screen definition.</p>
+          <ul>
+            <li><span class="codeish">screen_name</span> (required)</li>
+            <li><span class="codeish">screen_description</span> (optional)</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Screen Translations</h2>
+          <p class="small-muted">Component: <span class="codeish">ScreenTranslationsModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-screen-translations.png" alt="Screen translations modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Add/update translated screen name/description for a chosen language.</p>
+          <ul>
+            <li>Select <span class="codeish">language</span></li>
+            <li><span class="codeish">name</span> (required)</li>
+            <li><span class="codeish">description</span> (optional)</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Screen Permissions</h2>
+          <p class="small-muted">Component: <span class="codeish">ScreenPermissionsModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-screen-permissions.png" alt="Screen permissions modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Assign which permission is granted to each user type for a screen.</p>
+          <ul>
+            <li>Select <span class="codeish">User Type</span></li>
+            <li>Select <span class="codeish">Permission</span></li>
+            <li>Press <span class="codeish">Add</span> to create mapping (prevents duplicates per user type)</li>
+            <li>Existing mappings are deletable</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Language Modal</h2>
+          <p class="small-muted">Component: <span class="codeish">LanguageModal</span></p>
+          <figure>
+            <img class="slide-img" src="screenshots/modal-language.png" alt="Language modal screenshot placeholder" />
+          </figure>
+          <p><b>Purpose:</b> Create or edit a language (LTR/RTL).</p>
+          <ul>
+            <li><span class="codeish">language_name</span> (required)</li>
+            <li><span class="codeish">direction</span> (0=LTR, 1=RTL)</li>
+          </ul>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- Extra: If additional modals exist in future, add slides here.
+        <!-- ========================================================= -->
+        <section>
+          <h2>Notes / How to Use</h2>
+          <ul>
+            <li>Place screenshots under <span class="codeish">./screenshots/</span>.</li>
+            <li>Expected filename pattern: one of the <span class="codeish">pages-*</span> or <span class="codeish">modal-*</span> names used in each slide’s <span class="codeish">img src</span>.</li>
+            <li>Then open this HTML in a browser to view the deck.</li>
+          </ul>
+        </section>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/reveal.js/dist/reveal.js"></script>
+    <script>
+      Reveal.initialize({
+        hash: true,
+        slideNumber: true,
+        width: 1200,
+      });
+    </script>
+  </body>
+</html>
+

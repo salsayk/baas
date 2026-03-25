@@ -179,7 +179,7 @@ export function ServiceOfficeModal({
                 {isSaving && (
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 )}
-                {editingOffice ? "Update" : "Create"}
+                {editingOffice ? t("Update") : t("Create")}
               </button>
             </div>
           )}
@@ -189,7 +189,7 @@ export function ServiceOfficeModal({
   if (embedded) return formContent;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div
         className="absolute inset-0 backdrop-blur-sm"
         style={{ backgroundColor: "rgba(0,0,0,0.4)" }}

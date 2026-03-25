@@ -1,0 +1,35 @@
+---
+description: After any significant change, update Documents/architecture.md so it stays the single source of truth for the application.
+alwaysApply: true
+---
+
+# Update Architecture Documentation After Significant Changes
+
+Whenever you make a **significant change** to this codebase, you **must** update `Documents/architecture.md` at the end of your work so that the document remains accurate for the team and for onboarding.
+
+## What counts as a significant change
+
+- Adding, removing, or renaming **API routes** (under `app/api/`)
+- Adding, removing, or renaming **database tables** or important columns (and any new `create-*.sql` or migrations)
+- Adding, removing, or renaming **main app pages** or **layout** structure
+- Introducing or removing **contexts**, **providers**, or **global components** (e.g. sidebar, auth)
+- Changes to **authentication or authorization** (proxy, NextAuth, getAuthenticatedUser, access-control logic)
+- New **reusable feature components** (e.g. new modals or wizards under `database/` or `app/components/`)
+- Changes to **security measures** (e.g. new checks, new secrets usage)
+- **Technology or dependency** changes (e.g. major Next.js/React/DB driver upgrades, new key libraries)
+- **High-level system flow** or **data flow** changes (e.g. new tenant model, new user types)
+
+## How to update the doc
+
+1. Open `Documents/architecture.md`.
+2. Edit the relevant sections (e.g. "Technologies Used", "API Endpoints", "Database", "Frontend", "Security", "Repo Layout").
+3. Keep the same structure and level of detail: enough for a newcomer to understand what exists and where to look.
+4. Do not remove sections that are still accurate; only add, adjust, or mark obsolete parts.
+5. If you add a new section, place it logically and keep the table of contents / headings consistent.
+
+## When to do it
+
+- **At the end** of the same task or conversation where you made the significant change.
+- Prefer one coherent update per batch of related changes rather than many tiny edits.
+
+This rule ensures that `Documents/architecture.md` stays the single source of truth for architecture, technologies, DB, API, frontend, and security.

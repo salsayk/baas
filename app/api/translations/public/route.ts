@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getDbClient } from "@/database/accounts/db-client";
 
+export const dynamic = "force-dynamic";
+
 type TranslationRow = {
   source_text: string;
   translated_text: string;

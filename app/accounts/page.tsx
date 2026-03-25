@@ -175,10 +175,12 @@ function AccountsContent() {
           throw new Error(data.error || "Failed to update");
         }
         const updated = await res.json();
+        const updatedId = Number(updated.account_id);
         setAccounts((prev) =>
-          prev.map((a) => (a.account_id === updated.account_id ? updated : a))
+          prev.map((a) => (Number(a.account_id) === updatedId ? { ...a, ...updated, account_id: updatedId } : a))
         );
         notifyUpdate(`Account "${updated.account_name}" updated`);
+        await fetchAccounts();
       } else {
         const res = await fetch("/api/accounts", {
           method: "POST",

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "@/app/context/TranslationContext";
 import { NotificationContainer, useNotifications } from "@/app/components/notifications";
 import { Sidebar, SidebarProvider, MobileMenuButton } from "@/app/components/sidebar";
 import { SubcontractorModal } from "@/database/subcontractors/SubcontractorModal";
@@ -25,6 +26,7 @@ const defaultForm: CreateSubcontractorInput & { status: number } = {
 };
 
 function SubcontractorsContent() {
+  const { t } = useTranslations();
   const searchParams = useSearchParams();
   const fixedServiceOfficeIdParam = searchParams.get("service_office_id");
   const fixedServiceOfficeId = fixedServiceOfficeIdParam ? parseInt(fixedServiceOfficeIdParam, 10) : null;
@@ -129,6 +131,20 @@ function SubcontractorsContent() {
     setIsModalOpen(true);
   };
 
+  const openCopyModal = (subcontractor: Subcontractor) => {
+    setEditingSubcontractor(null);
+    setForm({
+      subcontractor_name: "copy of " + (subcontractor.subcontractor_name ?? ""),
+      service_office_id: subcontractor.service_office_id,
+      status: subcontractor.status,
+      contact_person_name: subcontractor.contact_person_name,
+      contact_person_phone: subcontractor.contact_person_phone,
+      contact_person_email: subcontractor.contact_person_email,
+      contact_person_address: subcontractor.contact_person_address,
+    });
+    setIsModalOpen(true);
+  };
+
   const handleSave = async () => {
     if (!form.subcontractor_name?.trim() || !form.service_office_id) return;
     setIsSaving(true);
@@ -151,10 +167,12 @@ function SubcontractorsContent() {
           throw new Error(data.error || "Failed to update");
         }
         const updated = await res.json();
+        const updatedId = Number(updated.subcontractor_id);
         setSubcontractors((prev) =>
-          prev.map((s) => (s.subcontractor_id === updated.subcontractor_id ? updated : s))
+          prev.map((s) => (Number(s.subcontractor_id) === updatedId ? { ...s, ...updated, subcontractor_id: updatedId } : s))
         );
         notifyUpdate(`"${updated.subcontractor_name}" updated`);
+        await fetchSubcontractors();
       } else {
         const res = await fetch("/api/subcontractors", {
           method: "POST",
@@ -221,9 +239,9 @@ function SubcontractorsContent() {
             <div className="p-4 lg:p-6 border-b border-slate-100">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h2 className="text-lg lg:text-xl font-bold text-slate-900">By service office</h2>
+                  <h2 className="text-lg lg:text-xl font-bold text-slate-900">{t("By service office")}</h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Select a service office to view and manage subcontractors
+                    {t("Select a service office to view and manage subcontractors")}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -256,8 +274,8 @@ function SubcontractorsContent() {
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/50">
                     <th className="px-4 lg:px-6 py-4 text-start text-xs font-semibold text-slate-500 uppercase">Name</th>
-                    <th className="px-4 lg:px-6 py-4 text-start text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">Contact Person</th>
-                    <th className="px-4 lg:px-6 py-4 text-start text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Contact Phone</th>
+                    <th className="px-4 lg:px-6 py-4 text-start text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">{t("Contact Person")}</th>
+                    <th className="px-4 lg:px-6 py-4 text-start text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">{t("Contact Phone")}</th>
                     <th className="px-4 lg:px-6 py-4 text-start text-xs font-semibold text-slate-500 uppercase">Status</th>
                     <th className="px-4 lg:px-6 py-4 text-end text-xs font-semibold text-slate-500 uppercase">Actions</th>
                   </tr>
@@ -278,6 +296,12 @@ function SubcontractorsContent() {
                         <td className="px-4 lg:px-6 py-4 text-sm text-slate-700">{STATUS_LABELS[subcontractor.status] ?? "Unknown"}</td>
                         <td className="px-4 lg:px-6 py-4">
                           <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => openCopyModal(subcontractor)} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600" title="Copy">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                              </svg>
+                            </button>
                             <button onClick={() => openEditModal(subcontractor)} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600" title="Edit">
                               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>

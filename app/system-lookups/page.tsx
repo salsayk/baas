@@ -96,15 +96,17 @@ function SystemLookupsContent() {
           throw new Error(data.error || "Failed to update");
         }
         const updated = await res.json();
+        const updatedId = Number(updated.lookup_table_id);
         setLookups((prev) =>
           prev.map((l) =>
-            l.lookup_table_id === updated.lookup_table_id ? updated : l
+            Number(l.lookup_table_id) === updatedId ? { ...l, ...updated, lookup_table_id: updatedId } : l
           )
         );
-        if (manageLookup?.lookup_table_id === updated.lookup_table_id) {
-          setManageLookup({ lookup_table_id: updated.lookup_table_id, lookup_table_name: updated.lookup_table_name });
+        if (manageLookup?.lookup_table_id === updatedId) {
+          setManageLookup({ lookup_table_id: updatedId, lookup_table_name: updated.lookup_table_name });
         }
         notifyUpdate(`Lookup "${updated.lookup_table_name}" updated`);
+        await fetchLookups();
       } else {
         const res = await fetch("/api/system-lookups", {
           method: "POST",

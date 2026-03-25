@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "@/app/context/TranslationContext";
 import { NotificationContainer, useNotifications } from "@/app/components/notifications";
 import { Sidebar, SidebarProvider, MobileMenuButton } from "@/app/components/sidebar";
 import { ProjectModal } from "@/database/project/ProjectModal";
@@ -25,6 +26,11 @@ const defaultForm: CreateProjectInput & { status: number } = {
 };
 
 function ProjectsContent() {
+  const { t, refreshTranslations } = useTranslations();
+
+  useEffect(() => {
+    refreshTranslations();
+  }, [refreshTranslations]);
   const searchParams = useSearchParams();
   const fixedServiceOfficeIdParam = searchParams.get("service_office_id");
   const fixedCustomerIdParam = searchParams.get("customer_id");
@@ -180,6 +186,18 @@ function ProjectsContent() {
     setIsModalOpen(true);
   };
 
+  const openCopyModal = (project: Project) => {
+    setEditingProject(null);
+    setForm({
+      project_name: "copy of " + (project.project_name ?? ""),
+      service_office_id: project.service_office_id,
+      customer_id: project.customer_id,
+      project_scope_description: project.project_scope_description,
+      status: project.status,
+    });
+    setIsModalOpen(true);
+  };
+
   const handleSave = async () => {
     if (!form.project_name?.trim() || !form.project_scope_description?.trim() || !form.service_office_id || !form.customer_id) return;
     setIsSaving(true);
@@ -199,8 +217,10 @@ function ProjectsContent() {
           throw new Error(data.error || "Failed to update");
         }
         const updated = await res.json();
-        setProjects((prev) => prev.map((p) => (p.project_id === updated.project_id ? updated : p)));
+        const updatedId = Number(updated.project_id);
+        setProjects((prev) => prev.map((p) => (Number(p.project_id) === updatedId ? { ...p, ...updated, project_id: updatedId } : p)));
         notifyUpdate(`"${updated.project_name}" updated`);
+        await fetchProjects();
       } else {
         const res = await fetch("/api/projects", {
           method: "POST",
@@ -255,7 +275,7 @@ function ProjectsContent() {
         </header>
 
         <div className="flex-1 p-4 lg:p-8 overflow-auto">
-          <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 mb-6 lg:mb-8">Projects</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 mb-6 lg:mb-8">{t("Projects")}</h1>
 
           {error && (
             <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200">
@@ -267,8 +287,8 @@ function ProjectsContent() {
             <div className="p-4 lg:p-6 border-b border-slate-100">
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                 <div>
-                  <h2 className="text-lg lg:text-xl font-bold text-slate-900">By service office and customer</h2>
-                  <p className="mt-1 text-sm text-slate-500">Select service office and customer to manage projects</p>
+                  <h2 className="text-lg lg:text-xl font-bold text-slate-900">{t("By service office and customer")}</h2>
+                  <p className="mt-1 text-sm text-slate-500">{t("Select service office and customer to manage projects")}</p>
                 </div>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                   <select
@@ -306,7 +326,7 @@ function ProjectsContent() {
                     disabled={!selectedServiceOfficeId || !selectedCustomerId || isLoadingOffices || isLoadingCustomers}
                     className="px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
                   >
-                    Add Project
+                    {t("Add Project")}
                   </button>
                 </div>
               </div>
@@ -317,16 +337,16 @@ function ProjectsContent() {
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/50">
                     <th className="px-4 lg:px-6 py-4 text-start text-xs font-semibold text-slate-500 uppercase">Name</th>
-                    <th className="px-4 lg:px-6 py-4 text-start text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">Scope Description</th>
+                    <th className="px-4 lg:px-6 py-4 text-start text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">{t("Scope Description")}</th>
                     <th className="px-4 lg:px-6 py-4 text-start text-xs font-semibold text-slate-500 uppercase">Status</th>
                     <th className="px-4 lg:px-6 py-4 text-end text-xs font-semibold text-slate-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {isLoadingProjects ? (
-                    <tr><td colSpan={4} className="px-4 lg:px-6 py-16 text-center text-slate-500">Loading projects...</td></tr>
+                    <tr><td colSpan={4} className="px-4 lg:px-6 py-16 text-center text-slate-500">{t("Loading projects...")}</td></tr>
                   ) : selectedServiceOfficeId === "" || selectedCustomerId === "" ? (
-                    <tr><td colSpan={4} className="px-4 lg:px-6 py-16 text-center text-slate-500">Select service office and customer to view projects</td></tr>
+                    <tr><td colSpan={4} className="px-4 lg:px-6 py-16 text-center text-slate-500">{t("Select service office and customer to view projects")}</td></tr>
                   ) : projects.length === 0 ? (
                     <tr><td colSpan={4} className="px-4 lg:px-6 py-16 text-center text-slate-500">No projects yet. Add one for this customer.</td></tr>
                   ) : (
@@ -342,7 +362,7 @@ function ProjectsContent() {
                             <button
                               onClick={() => setAssignContractsProject(project)}
                               className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                              title="Assign Contracts"
+                              title={t("Assign Contracts")}
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -350,6 +370,12 @@ function ProjectsContent() {
                                 <line x1="16" y1="13" x2="8" y2="13"/>
                                 <line x1="16" y1="17" x2="8" y2="17"/>
                                 <polyline points="10 9 9 9 8 9"/>
+                              </svg>
+                            </button>
+                            <button onClick={() => openCopyModal(project)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300" title="Copy">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                               </svg>
                             </button>
                             <button onClick={() => openEditModal(project)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300" title="Edit">

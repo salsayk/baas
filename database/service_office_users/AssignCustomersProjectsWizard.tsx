@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useTranslations } from "@/app/context/TranslationContext";
 
 interface Customer {
   customer_id: number;
@@ -67,8 +68,8 @@ function ToggleSwitch({
       disabled={disabled}
       onClick={() => !disabled && onChange(!checked)}
       className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 ${
-        disabled ? "cursor-not-allowed opacity-70" : "cursor-pointer"
-      } ${checked ? "bg-violet-600" : "bg-slate-200"}`}
+        disabled ? "cursor-not-allowed opacity-95" : "cursor-pointer"
+      } ${checked ? "bg-violet-600" : "bg-slate-200"} ${disabled && checked ? "ring-2 ring-violet-400 ring-offset-1" : ""}`}
     >
       <span
         className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition-transform ${
@@ -87,6 +88,7 @@ export function AssignCustomersProjectsWizard({
   onClose,
   onSaved,
 }: AssignCustomersProjectsWizardProps) {
+  const { t } = useTranslations();
   const [step, setStep] = useState(1);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [projectsByCustomer, setProjectsByCustomer] = useState<Record<number, Project[]>>({});
@@ -102,15 +104,24 @@ export function AssignCustomersProjectsWizard({
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loadIdRef = useRef(0);
+
+  const effectiveSelectedCustomerIds: number[] = assignAllFutureCustomers
+    ? customers.map((c) => c.customer_id)
+    : Array.from(selectedCustomers);
 
   const fetchCustomers = useCallback(async () => {
     if (!serviceOfficeId || !isOpen) return;
+    const myLoadId = loadIdRef.current;
     try {
       const res = await fetch(`/api/customers?service_office_id=${serviceOfficeId}`);
       if (!res.ok) throw new Error("Failed to fetch customers");
       const data = await res.json();
-      setCustomers(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      if (myLoadId !== loadIdRef.current) return;
+      setCustomers(list.map((c: Customer) => ({ ...c, customer_id: Number(c.customer_id) })));
     } catch (err) {
+      if (myLoadId !== loadIdRef.current) return;
       setError(err instanceof Error ? err.message : "Failed to load");
       setCustomers([]);
     }
@@ -118,10 +129,22 @@ export function AssignCustomersProjectsWizard({
 
   const fetchExistingAuth = useCallback(async () => {
     if (!serviceOfficeUserId || !isOpen) return;
+    const myLoadId = loadIdRef.current;
     try {
       const res = await fetch(`/api/user-data-authorization?service_office_user_id=${serviceOfficeUserId}`);
-      if (!res.ok) return;
+      if (!res.ok) {
+        if (myLoadId !== loadIdRef.current) return;
+        setAssignAllFutureCustomers(false);
+        setSelectedCustomers(new Set());
+        setAllFutureProjectsByCustomer(new Set());
+        setSelectedProjects(new Set());
+        setSelectedIndependentContracts(new Set());
+        setExpandedCustomers(new Set());
+        setAssignAllCurrentCustomers(false);
+        return;
+      }
       const data = await res.json();
+      if (myLoadId !== loadIdRef.current) return;
       const rows = Array.isArray(data) ? data : [];
       const loadedCustomers: number[] = [];
       const loadedProjects: number[] = [];
@@ -152,17 +175,22 @@ export function AssignCustomersProjectsWizard({
         }
       }
 
-      setSelectedCustomers(new Set(loadedCustomers));
-      setSelectedProjects(new Set(loadedProjects));
-      setAllFutureProjectsByCustomer(new Set(loadedAllFutureProjectsCustomers));
       setAssignAllFutureCustomers(loadedAssignAllFutureCustomers);
+      if (loadedAssignAllFutureCustomers) {
+        setSelectedCustomers(new Set());
+        setAllFutureProjectsByCustomer(new Set());
+      } else {
+        setSelectedCustomers(new Set(loadedCustomers));
+        setAllFutureProjectsByCustomer(new Set(loadedAllFutureProjectsCustomers));
+      }
+      setSelectedProjects(new Set(loadedProjects));
 
       if (loadedAssignAllFutureCustomers && loadedCustomers.length > 0) {
         setAssignAllCurrentCustomers(true);
       }
 
       if (loadedProjects.length > 0 || loadedCustomers.length > 0) {
-        setExpandedCustomers(new Set(loadedCustomers));
+        setExpandedCustomers(new Set(loadedAssignAllFutureCustomers ? [] : loadedCustomers));
       }
 
       setSelectedIndependentContracts(new Set(independentContractsToSelect));
@@ -179,7 +207,8 @@ export function AssignCustomersProjectsWizard({
         const res = await fetch(`/api/projects?service_office_id=${serviceOfficeId}&customer_id=${cid}`);
         if (!res.ok) return;
         const data = await res.json();
-        byCustomer[cid] = Array.isArray(data) ? data : [];
+        const list = Array.isArray(data) ? data : [];
+        byCustomer[cid] = list.map((p: Project) => ({ ...p, project_id: Number(p.project_id), customer_id: Number(p.customer_id ?? cid) }));
       })
     );
     setProjectsByCustomer((prev) => ({ ...prev, ...byCustomer }));
@@ -192,7 +221,12 @@ export function AssignCustomersProjectsWizard({
         const res = await fetch(`/api/contracts?service_office_id=${serviceOfficeId}&customer_id=${cid}`);
         if (!res.ok) return;
         const data = await res.json();
-        byCustomer[cid] = Array.isArray(data) ? data : [];
+        const list = Array.isArray(data) ? data : [];
+        byCustomer[cid] = list.map((c: Contract) => ({
+          ...c,
+          contract_id: Number(c.contract_id),
+          customer_id: Number(c.customer_id ?? cid),
+        }));
       })
     );
     setAllContractsByCustomer((prev) => ({ ...prev, ...byCustomer }));
@@ -201,7 +235,13 @@ export function AssignCustomersProjectsWizard({
       const res = await fetch(`/api/entities-pairs?parent_entity_ids=${projectIds.join(",")}&entities_pair_type=0`);
       if (res.ok) {
         const data = await res.json();
-        setProjectContractPairs(Array.isArray(data) ? data : []);
+        const pairs = Array.isArray(data) ? data : [];
+        setProjectContractPairs(
+          pairs.map((p: EntityPair) => ({
+            parent_entity_id: Number(p.parent_entity_id),
+            child_entity_id: Number(p.child_entity_id),
+          }))
+        );
       } else {
         setProjectContractPairs([]);
       }
@@ -211,7 +251,8 @@ export function AssignCustomersProjectsWizard({
   }, [serviceOfficeId]);
 
   useEffect(() => {
-    if (isOpen && serviceOfficeId) {
+    if (isOpen && serviceOfficeId && serviceOfficeUserId) {
+      loadIdRef.current += 1;
       setError(null);
       setStep(1);
       setSelectedCustomers(new Set());
@@ -227,7 +268,7 @@ export function AssignCustomersProjectsWizard({
       fetchCustomers();
       fetchExistingAuth();
     }
-  }, [isOpen, serviceOfficeId, fetchCustomers, fetchExistingAuth]);
+  }, [isOpen, serviceOfficeId, serviceOfficeUserId, fetchCustomers, fetchExistingAuth]);
 
   const handleAssignAllCurrentCustomers = () => {
     if (assignAllFutureCustomers) return;
@@ -238,18 +279,35 @@ export function AssignCustomersProjectsWizard({
 
   useEffect(() => {
     if (assignAllFutureCustomers && customers.length > 0) {
+      const allCustomerIds = customers.map((c) => c.customer_id);
       setAssignAllCurrentCustomers(true);
-      setSelectedCustomers(new Set(customers.map((c) => c.customer_id)));
+      setSelectedCustomers(new Set(allCustomerIds));
+      setAllFutureProjectsByCustomer(new Set(allCustomerIds));
     }
   }, [assignAllFutureCustomers, customers]);
 
   useEffect(() => {
-    if (step >= 2 && selectedCustomers.size > 0) {
-      const ids = Array.from(selectedCustomers);
+    if (step >= 2) {
+      const ids = assignAllFutureCustomers ? customers.map((c) => c.customer_id) : Array.from(selectedCustomers);
+      if (ids.length === 0) return;
       setExpandedCustomers(new Set(ids));
       fetchProjectsForCustomers(ids);
     }
-  }, [step, selectedCustomers, fetchProjectsForCustomers]);
+  }, [step, assignAllFutureCustomers, customers, selectedCustomers, fetchProjectsForCustomers]);
+
+  useEffect(() => {
+    if (!assignAllFutureCustomers) return;
+    const allProjectIds: number[] = [];
+    Object.values(projectsByCustomer).forEach((projs) => {
+      projs.forEach((p) => allProjectIds.push(p.project_id));
+    });
+    if (allProjectIds.length === 0) return;
+    setSelectedProjects((prev) => {
+      const next = new Set(prev);
+      allProjectIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }, [assignAllFutureCustomers, projectsByCustomer]);
 
   useEffect(() => {
     const toAdd: number[] = [];
@@ -266,12 +324,13 @@ export function AssignCustomersProjectsWizard({
   }, [allFutureProjectsByCustomer, projectsByCustomer]);
 
   useEffect(() => {
-    if (step >= 3 && selectedCustomers.size > 0) {
-      const custIds = Array.from(selectedCustomers);
+    if (step >= 3) {
+      const custIds = assignAllFutureCustomers ? customers.map((c) => c.customer_id) : Array.from(selectedCustomers);
+      if (custIds.length === 0) return;
       const projIds = Array.from(selectedProjects);
       fetchContractsAndPairs(custIds, projIds);
     }
-  }, [step, selectedCustomers, selectedProjects, fetchContractsAndPairs]);
+  }, [step, assignAllFutureCustomers, customers, selectedCustomers, selectedProjects, fetchContractsAndPairs]);
 
   const toggleCustomer = (customerId: number) => {
     if (assignAllFutureCustomers) return;
@@ -337,8 +396,8 @@ export function AssignCustomersProjectsWizard({
   const projectLinkedContractIds = new Set(projectContractPairs.map((p) => p.child_entity_id));
 
   const independentContracts: Array<{ contract: Contract; customer: Customer }> = [];
-  selectedCustomers.forEach((cid) => {
-    const cust = customers.find((c) => c.customer_id === cid);
+  effectiveSelectedCustomerIds.forEach((cid) => {
+    const cust = customers.find((c) => Number(c.customer_id) === Number(cid));
     if (!cust) return;
     const contracts = allContractsByCustomer[cid] ?? [];
     contracts.forEach((contract) => {
@@ -349,8 +408,9 @@ export function AssignCustomersProjectsWizard({
   });
 
   const getContractById = (contractId: number): Contract | null => {
+    const id = Number(contractId);
     for (const arr of Object.values(allContractsByCustomer)) {
-      const c = arr.find((x) => x.contract_id === contractId);
+      const c = arr.find((x) => Number(x.contract_id) === id);
       if (c) return c;
     }
     return null;
@@ -360,16 +420,28 @@ export function AssignCustomersProjectsWizard({
     setIsSaving(true);
     setError(null);
     try {
-      const projectLinkedContractIdsList = Array.from(projectLinkedContractIds);
+      // When "assign all future customers" is ON, save only type 100 (no specific customer records)
+      const customersToSave = assignAllFutureCustomers ? [] : Array.from(selectedCustomers);
+      // When "all future projects" is ON for a customer, save only type 101 for that customer (no specific project records for that customer)
+      const projectToCustomer = new Map<number, number>();
+      Object.entries(projectsByCustomer).forEach(([cid, projs]) => {
+        const customerId = Number(cid);
+        projs.forEach((p) => projectToCustomer.set(p.project_id, customerId));
+      });
+      const projectsToSave = Array.from(selectedProjects).filter((projectId) => {
+        const customerId = projectToCustomer.get(projectId);
+        return customerId != null && !allFutureProjectsByCustomer.has(customerId);
+      });
+      // Only save independent contract IDs (contracts not linked to projects); project-linked contracts are implied by project access
       const res = await fetch("/api/user-data-authorization", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           service_office_user_id: serviceOfficeUserId,
           service_office_id: serviceOfficeId,
-          customers: Array.from(selectedCustomers),
-          projects: Array.from(selectedProjects),
-          contracts: [...projectLinkedContractIdsList, ...Array.from(selectedIndependentContracts)],
+          customers: customersToSave,
+          projects: projectsToSave,
+          contracts: Array.from(selectedIndependentContracts),
           assign_all_future_customers: assignAllFutureCustomers,
           all_future_projects_customer_ids: Array.from(allFutureProjectsByCustomer),
         }),
@@ -401,7 +473,7 @@ export function AssignCustomersProjectsWizard({
         <div className="flex-shrink-0 px-6 py-4 border-b border-slate-200 bg-slate-50">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Assign Customers & Projects</h2>
+              <h2 className="text-xl font-bold text-slate-900">{t("Assign Customers & Projects")}</h2>
               <p className="mt-1 text-sm text-slate-600">Assign data access for {userName}</p>
             </div>
             <div className="flex items-center gap-2">
@@ -444,13 +516,13 @@ export function AssignCustomersProjectsWizard({
               ) : (
                 <>
                   <div className="flex items-center justify-between gap-4 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                    <label className={`flex items-center gap-2 ${assignAllFutureCustomers ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}>
+                    <label className={`flex items-center gap-2 ${assignAllFutureCustomers ? "cursor-not-allowed opacity-95" : "cursor-pointer"}`}>
                       <input
                         type="checkbox"
                         checked={assignAllCurrentCustomers}
                         disabled={assignAllFutureCustomers}
                         onChange={handleAssignAllCurrentCustomers}
-                        className="rounded border-slate-300 text-violet-600 focus:ring-violet-500 disabled:opacity-70"
+                        className="rounded border-slate-300 text-violet-600 focus:ring-violet-500 disabled:opacity-90 disabled:accent-violet-600"
                       />
                       <span className="text-sm font-medium text-slate-700">Assign all current customers</span>
                     </label>
@@ -467,17 +539,19 @@ export function AssignCustomersProjectsWizard({
                     <label
                       key={c.customer_id}
                       className={`flex flex-col p-4 rounded-xl border-2 transition-all ${
-                        assignAllFutureCustomers ? "cursor-not-allowed opacity-90" : "cursor-pointer"
+                        assignAllFutureCustomers ? "cursor-not-allowed opacity-95" : "cursor-pointer"
                       } ${
-                        selectedCustomers.has(c.customer_id)
-                          ? "border-amber-700 bg-amber-50 shadow-md"
-                          : "border-slate-200 hover:border-slate-300 bg-white"
+                        assignAllFutureCustomers
+                          ? "border-amber-600 bg-amber-50 shadow-md ring-1 ring-amber-400/50"
+                          : selectedCustomers.has(c.customer_id)
+                            ? "border-amber-700 bg-amber-50 shadow-md"
+                            : "border-slate-200 hover:border-slate-300 bg-white"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <svg
                           className={`flex-shrink-0 w-10 h-10 ${
-                            selectedCustomers.has(c.customer_id) ? "text-amber-700" : "text-slate-400"
+                            assignAllFutureCustomers || selectedCustomers.has(c.customer_id) ? "text-amber-700" : "text-slate-400"
                           }`}
                           fill="none"
                           stroke="currentColor"
@@ -490,7 +564,7 @@ export function AssignCustomersProjectsWizard({
                           checked={selectedCustomers.has(c.customer_id)}
                           disabled={assignAllFutureCustomers}
                           onChange={() => toggleCustomer(c.customer_id)}
-                          className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 mt-0.5 disabled:opacity-70"
+                          className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 mt-0.5 disabled:opacity-90 disabled:accent-amber-600"
                         />
                       </div>
                       <span className="mt-3 font-semibold text-slate-900 block">{c.customer_name}</span>
@@ -508,18 +582,20 @@ export function AssignCustomersProjectsWizard({
           {step === 2 && (
             <div>
               <h3 className="text-lg font-semibold text-slate-900 mb-4">Customers & Projects</h3>
-              {Array.from(selectedCustomers).length === 0 ? (
+              {effectiveSelectedCustomerIds.length === 0 ? (
                 <p className="py-12 text-center text-slate-500">Select customers in Step 1 first</p>
               ) : (
                 <div className="space-y-2">
-                  {Array.from(selectedCustomers).map((cid) => {
-                    const cust = customers.find((c) => c.customer_id === cid);
+                  {effectiveSelectedCustomerIds.map((cid) => {
+                    const cust = customers.find((c) => Number(c.customer_id) === Number(cid));
                     const projects = projectsByCustomer[cid] ?? [];
                     const isExpanded = expandedCustomers.has(cid);
                     const allFutureForCustomer = allFutureProjectsByCustomer.has(cid);
-                    const allSelected = allFutureForCustomer || (projects.length > 0 && projects.every((p) => selectedProjects.has(p.project_id)));
+                    const allSelected =
+                      allFutureForCustomer || (projects.length > 0 && projects.every((p) => selectedProjects.has(p.project_id)));
+                    const tab2Disabled = assignAllFutureCustomers;
                     return (
-                      <div key={cid} className="border border-slate-200 rounded-lg overflow-hidden">
+                      <div key={cid} className={`border border-slate-200 rounded-lg overflow-hidden ${tab2Disabled ? "opacity-95" : ""}`}>
                         <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100">
                           <button
                             type="button"
@@ -529,10 +605,10 @@ export function AssignCustomersProjectsWizard({
                             <input
                               type="checkbox"
                               checked={allSelected}
-                              disabled={allFutureForCustomer}
+                              disabled={tab2Disabled || allFutureForCustomer}
                               onChange={(e) => {
                                 e.stopPropagation();
-                                if (allFutureForCustomer) return;
+                                if (tab2Disabled || allFutureForCustomer) return;
                                 if (e.target.checked) {
                                   projects.forEach((p) => setSelectedProjects((prev) => new Set([...prev, p.project_id])));
                                 } else {
@@ -546,7 +622,7 @@ export function AssignCustomersProjectsWizard({
                                 }
                               }}
                               onClick={(e) => e.stopPropagation()}
-                              className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 disabled:opacity-70 flex-shrink-0"
+                              className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 flex-shrink-0 disabled:opacity-90 disabled:accent-amber-600"
                             />
                             <span className="font-medium text-slate-900 truncate">
                               {cust?.customer_name ?? `Customer ${cid}`}
@@ -561,13 +637,14 @@ export function AssignCustomersProjectsWizard({
                             </svg>
                           </button>
                           <div
-                            className="flex items-center gap-2 flex-shrink-0 ms-auto"
+                            className={`flex items-center gap-2 flex-shrink-0 ms-auto ${tab2Disabled ? "cursor-not-allowed opacity-95" : ""}`}
                             onClick={(e) => e.stopPropagation()}
                           >
                             <span className="text-sm text-slate-600 hidden sm:inline">Assign all future projects</span>
                             <ToggleSwitch
-                              checked={allFutureForCustomer}
+                              checked={tab2Disabled || allFutureForCustomer}
                               onChange={() => toggleAllFutureProjectsByCustomer(cid)}
+                              disabled={tab2Disabled}
                             />
                           </div>
                         </div>
@@ -579,14 +656,14 @@ export function AssignCustomersProjectsWizard({
                               projects.map((p) => (
                                 <label
                                   key={p.project_id}
-                                  className={`flex items-center gap-3 px-4 py-2.5 pl-12 hover:bg-slate-50 ${!allFutureForCustomer ? "cursor-pointer" : "cursor-not-allowed"}`}
+                                  className={`flex items-center gap-3 px-4 py-2.5 pl-12 ${tab2Disabled || allFutureForCustomer ? "cursor-not-allowed opacity-95" : "cursor-pointer hover:bg-slate-50"} ${selectedProjects.has(p.project_id) && (tab2Disabled || allFutureForCustomer) ? "bg-amber-50/80" : ""}`}
                                 >
                                   <input
                                     type="checkbox"
                                     checked={selectedProjects.has(p.project_id)}
-                                    disabled={allFutureForCustomer}
+                                    disabled={tab2Disabled || allFutureForCustomer}
                                     onChange={() => toggleProject(p.project_id, cid)}
-                                    className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 disabled:opacity-70"
+                                    className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 disabled:opacity-90 disabled:accent-amber-600"
                                   />
                                   <span className="text-sm text-slate-700">{p.project_name}</span>
                                 </label>
@@ -606,13 +683,19 @@ export function AssignCustomersProjectsWizard({
             <div>
               <h3 className="text-lg font-semibold text-slate-900 mb-4">Contracts</h3>
               <div className="space-y-6">
-                {selectedProjects.size > 0 && (
+                {effectiveSelectedCustomerIds.some((cid) => {
+                  const projs = projectsByCustomer[cid] ?? [];
+                  const toShow = assignAllFutureCustomers ? projs : projs.filter((p) => selectedProjects.has(p.project_id));
+                  return toShow.length > 0;
+                }) && (
                   <div>
                     <h4 className="font-semibold text-slate-800 mb-2">Project-Linked Contracts</h4>
                     <div className="space-y-3">
-                      {Array.from(selectedCustomers).map((cid) => {
-                        const cust = customers.find((c) => c.customer_id === cid);
-                        const projs = (projectsByCustomer[cid] ?? []).filter((p) => selectedProjects.has(p.project_id));
+                      {effectiveSelectedCustomerIds.map((cid) => {
+                        const cust = customers.find((c) => Number(c.customer_id) === Number(cid));
+                        const projs = (projectsByCustomer[cid] ?? []).filter((p) =>
+                          assignAllFutureCustomers ? true : selectedProjects.has(p.project_id)
+                        );
                         if (projs.length === 0) return null;
                         return (
                           <div key={cid} className="border border-slate-200 rounded-lg overflow-hidden">
@@ -697,37 +780,40 @@ export function AssignCustomersProjectsWizard({
             disabled={step === 1}
             className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Back
+            {t("Back")}
           </button>
-          {step < 3 ? (
-            <button
-              type="button"
-              onClick={() => setStep((s) => s + 1)}
-              disabled={
-                (step === 1 && selectedCustomers.size === 0) ||
-                (step === 2 &&
-                  (() => {
-                    const totalProjects = Array.from(selectedCustomers).reduce(
-                      (sum, cid) => sum + (projectsByCustomer[cid]?.length ?? 0),
-                      0
-                    );
-                    return totalProjects > 0 && selectedProjects.size === 0;
-                  })())
-              }
-              className="px-4 py-2 rounded-xl bg-violet-600 text-white font-medium hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSaving}
-              className="px-4 py-2 rounded-xl bg-violet-600 text-white font-medium hover:bg-violet-700 disabled:opacity-50"
-            >
-              {isSaving ? "Saving..." : "Save"}
-            </button>
-          )}
+          {(() => {
+            const isLastStep = step >= 3;
+            const primaryLabel = isLastStep
+              ? isSaving
+                ? t("Saving...")
+                : t("Save")
+              : t("Next");
+            return (
+              <button
+                key={isLastStep ? "save" : "next"}
+                type="button"
+                onClick={isLastStep ? handleSave : () => setStep((s) => s + 1)}
+                disabled={
+                  isLastStep
+                    ? isSaving
+                    : (step === 1 && selectedCustomers.size === 0 && !assignAllFutureCustomers) ||
+                      (step === 2 &&
+                        !assignAllFutureCustomers &&
+                        (() => {
+                          const totalProjects = Array.from(selectedCustomers).reduce(
+                            (sum, cid) => sum + (projectsByCustomer[cid]?.length ?? 0),
+                            0
+                          );
+                          return totalProjects > 0 && selectedProjects.size === 0;
+                        })())
+                }
+                className="px-4 py-2 rounded-xl bg-violet-600 text-white font-medium hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {primaryLabel}
+              </button>
+            );
+          })()}
         </div>
       </div>
     </div>

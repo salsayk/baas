@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "@/app/context/TranslationContext";
 import type { CreateProjectInput, Project } from "@/database/project/types";
 
 const STATUS_LABELS: Record<number, string> = {
@@ -45,6 +46,7 @@ export function ProjectModal({
   onSave,
   onChange,
 }: ProjectModalProps) {
+  const { t } = useTranslations();
   if (!isOpen) return null;
 
   const serviceOfficeFixed = fixedServiceOfficeId != null && fixedServiceOfficeId > 0;
@@ -56,15 +58,15 @@ export function ProjectModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.4)" }} onClick={onClose} aria-hidden="true" />
       <div className="relative w-full sm:max-w-2xl bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[96vh] overflow-auto">
         <div className="sticky top-0 bg-white p-6 border-b border-slate-100 rounded-t-2xl sm:rounded-t-2xl z-10">
           <h2 className="text-xl font-bold text-slate-900">
-            {editingProject ? "Edit Project" : "Add Project"}
+            {editingProject ? t("Edit Project") : t("Add Project")}
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            {editingProject ? "Update project details" : "Fill in details for the new project"}
+            {editingProject ? t("Update project details") : t("Fill in details for the new project")}
           </p>
         </div>
 
@@ -72,7 +74,7 @@ export function ProjectModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <label htmlFor="project_name" className="block text-sm font-medium text-slate-700 mb-2">
-                Project Name <span className="text-red-500">*</span>
+                {t("Project Name")} <span className="text-red-500">*</span>
               </label>
               <input
                 id="project_name"
@@ -88,7 +90,7 @@ export function ProjectModal({
 
             <div>
               <label htmlFor="service_office_id" className="block text-sm font-medium text-slate-700 mb-2">
-                Service Office <span className="text-red-500">*</span>
+                {t("Service Office")} <span className="text-red-500">*</span>
               </label>
               <select
                 id="service_office_id"
@@ -100,7 +102,7 @@ export function ProjectModal({
                 disabled={isSaving || serviceOfficeFixed || !!editingProject}
                 required
               >
-                <option value="">Select service office</option>
+                <option value="">{t("Select service office")}</option>
                 {serviceOffices.map((s) => (
                   <option key={s.service_office_id} value={s.service_office_id}>
                     {s.service_office_name}
@@ -111,7 +113,7 @@ export function ProjectModal({
 
             <div>
               <label htmlFor="customer_id" className="block text-sm font-medium text-slate-700 mb-2">
-                Customer <span className="text-red-500">*</span>
+                {t("Customer")} <span className="text-red-500">*</span>
               </label>
               <select
                 id="customer_id"
@@ -121,7 +123,7 @@ export function ProjectModal({
                 disabled={isSaving || customerFixed || !!editingProject}
                 required
               >
-                <option value="">Select customer</option>
+                <option value="">{t("Select customer")}</option>
                 {customers.map((c) => (
                   <option key={c.customer_id} value={c.customer_id}>
                     {c.customer_name}
@@ -132,7 +134,7 @@ export function ProjectModal({
 
             <div className="sm:col-span-2">
               <label htmlFor="project_scope_description" className="block text-sm font-medium text-slate-700 mb-2">
-                Project Scope Description <span className="text-red-500">*</span>
+                {t("Project Scope Description")} <span className="text-red-500">*</span>
               </label>
               <textarea
                 id="project_scope_description"
@@ -148,7 +150,7 @@ export function ProjectModal({
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-slate-700 mb-2">Status</h3>
+            <h3 className="text-sm font-semibold text-slate-700 mb-2">{t("Status")}</h3>
             <div className="flex gap-3">
               {([1, 2, 3] as const).map((s) => (
                 <button
@@ -162,7 +164,7 @@ export function ProjectModal({
                       : "border-slate-200 text-slate-600 hover:border-slate-300"
                   }`}
                 >
-                  {STATUS_LABELS[s]}
+                  {t(STATUS_LABELS[s])}
                 </button>
               ))}
             </div>
@@ -175,7 +177,7 @@ export function ProjectModal({
               disabled={isSaving}
               className="px-5 py-3 sm:py-2.5 rounded-xl text-slate-600 font-medium hover:bg-slate-100"
             >
-              Cancel
+              {t("Cancel")}
             </button>
             <button
               type="submit"
@@ -188,7 +190,7 @@ export function ProjectModal({
               }
               className="px-5 py-3 sm:py-2.5 rounded-xl bg-violet-600 text-white font-medium disabled:opacity-50"
             >
-              {editingProject ? "Update" : "Create"}
+              {editingProject ? t("Update") : t("Create")}
             </button>
           </div>
         </form>

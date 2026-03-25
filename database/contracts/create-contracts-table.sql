@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS contracts (
   contract_amount_value                          NUMERIC(18,2) NOT NULL,
   contract_currency                              VARCHAR(3) NOT NULL,
   pp_proforma_recurrence                         SMALLINT NOT NULL,
-  pp_proforma_occasion                           VARCHAR(10) NOT NULL,
+  pp_proforma_occasion                           VARCHAR(20) NOT NULL,
   pp_initial_payment_reached_indicator           SMALLINT NOT NULL,
   pp_initial_amount_value                        NUMERIC(18,2) NOT NULL,
   pp_upper_cap_reached_indicator                 SMALLINT NOT NULL,

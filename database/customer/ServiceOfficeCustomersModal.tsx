@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "@/app/context/TranslationContext";
 import { CustomerModal } from "@/database/customer/CustomerModal";
 import { CustomerProjectsModal } from "@/database/project/CustomerProjectsModal";
 import type { Customer, CreateCustomerInput } from "@/database/customer/types";
@@ -39,6 +40,7 @@ export function ServiceOfficeCustomersModal({
   onClose,
   onNotify,
 }: ServiceOfficeCustomersModalProps) {
+  const { t } = useTranslations();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -177,7 +179,7 @@ export function ServiceOfficeCustomersModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[40] flex items-center justify-center p-4">
         <div
           className="absolute inset-0 backdrop-blur-sm"
           style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
@@ -188,10 +190,10 @@ export function ServiceOfficeCustomersModal({
           <div className="p-4 lg:p-6 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
             <div>
               <h2 className="text-xl font-bold text-slate-900">
-                Customers — {serviceOffice?.service_office_name ?? ""}
+                {t("Customers")} — {serviceOffice?.service_office_name ?? ""}
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Manage customers for this service office
+                {t("Manage customers for this service office")}
               </p>
               <div className="mt-3">
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
@@ -218,7 +220,7 @@ export function ServiceOfficeCustomersModal({
                 disabled={!serviceOffice}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 transition-colors disabled:opacity-50"
               >
-                Add Customer
+                {t("Add Customer")}
               </button>
               <button
                 onClick={onClose}
@@ -255,7 +257,7 @@ export function ServiceOfficeCustomersModal({
                 ) : customers.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-4 lg:px-6 py-12 text-center text-slate-500 text-sm">
-                      No customers yet. Click "Add Customer" to create one.
+                      {t('No customers yet. Click "Add Customer" to create one.')}
                     </td>
                   </tr>
                 ) : (
@@ -282,7 +284,7 @@ export function ServiceOfficeCustomersModal({
                               });
                             }}
                             className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600"
-                            title="Manage projects"
+                            title={t("Manage projects")}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                               <path d="M2 20h20"/>

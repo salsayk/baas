@@ -12,11 +12,11 @@ export function Hero() {
 
   const handleGetStarted = () => {
     if (session) {
-      // Already logged in, redirect to dashboard
-      router.push("/dashboards")
+      // Already logged in, redirect to accounts
+      router.push("/accounts")
     } else {
       // Not logged in, sign in with Google
-      signIn("google", { callbackUrl: "/dashboards" })
+      signIn("google", { callbackUrl: "/accounts" })
     }
   }
 

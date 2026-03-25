@@ -36,7 +36,9 @@ const defaultServiceOfficeForm: CreateServiceOfficeInput & { status: number } = 
 
 const defaultUserForm: import("@/database/service_office_users/types").ServiceOfficeUserFormState = {
   user_name: "",
-  user_type: 0,
+  // Sentinel value that represents "not selected yet" for user_type.
+  // We avoid using 0 here because system lookup values are allowed to use value_id=0.
+  user_type: -1,
   user_professional_grade: null,
   service_office_id: 0,
   subcontractor_id: null,
@@ -66,7 +68,7 @@ export function AccountWizardModal({
     defaultServiceOfficeForm
   );
   const [userForm, setUserForm] = useState<ServiceOfficeUserFormState>(defaultUserForm);
-  const [supervisorValueId, setSupervisorValueId] = useState<number | null>(null);
+  const [administratorValueId, setAdministratorValueId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [verifyModalOpen, setVerifyModalOpen] = useState(false);
   const [verifyEmail, setVerifyEmail] = useState("");
@@ -75,32 +77,49 @@ export function AccountWizardModal({
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
 
-  const fetchSupervisorValueId = useCallback(async () => {
+  const fetchAdministratorValueId = useCallback(async () => {
     try {
       const res = await fetch(`/api/system-lookup-values?lookup_table_id=${USER_TYPE_LOOKUP_ID}`);
       if (!res.ok) return;
       const data = await res.json();
       const values = Array.isArray(data) ? data : [];
-      const supervisor = values.find(
-        (v: { value_id: number; value_name: string }) =>
-          v.value_name?.toLowerCase().includes("supervisor") ||
-          v.value_name?.toLowerCase() === "service office supervisor"
-      );
-      setSupervisorValueId(supervisor?.value_id ?? values[0]?.value_id ?? null);
+      const administrator = values.find((v: { value_id: number; value_name: string }) => {
+        const name = (v.value_name ?? "").toLowerCase();
+        return (
+          name.includes("administrator") ||
+          name === "service office administrator" ||
+          // fallback: admins are sometimes stored as 'admin'
+          name.includes("admin") ||
+          // Common Hebrew variants (in case lookup value_name is localized)
+          name.includes("מנהל משרד שירות") ||
+          (name.includes("מנהל") && name.includes("משרד שירות")) ||
+          (name.includes("מנהל") && name.includes("שירות"))
+        );
+      });
+
+      // If we couldn't find an explicit admin match, avoid blindly picking the first value
+      // (often it's "supervisor"). Prefer the first non-supervisor entry.
+      const fallback =
+        values.find((v: { value_name: string }) => {
+          const name = (v.value_name ?? "").toLowerCase();
+          return !name.includes("supervisor") && !name.includes("supervis") && !name.includes("מפקח");
+        }) ?? values[0];
+
+      setAdministratorValueId(administrator?.value_id ?? fallback?.value_id ?? null);
     } catch {
-      setSupervisorValueId(null);
+      setAdministratorValueId(null);
     }
   }, []);
 
   useEffect(() => {
-    if (isOpen) fetchSupervisorValueId();
-  }, [isOpen, fetchSupervisorValueId]);
+    if (isOpen) fetchAdministratorValueId();
+  }, [isOpen, fetchAdministratorValueId]);
 
   useEffect(() => {
-    if (supervisorValueId != null && (userForm.user_type === 0 || userForm.user_type == null)) {
-      setUserForm((prev) => ({ ...prev, user_type: supervisorValueId }));
+    if (administratorValueId != null && (userForm.user_type === -1 || userForm.user_type == null)) {
+      setUserForm((prev) => ({ ...prev, user_type: administratorValueId }));
     }
-  }, [supervisorValueId]);
+  }, [administratorValueId]);
 
   const validateTab0 = useCallback((): { valid: boolean; firstInvalidFieldId: string | null; message: string } => {
     if (!accountForm.account_name?.trim()) {
@@ -140,7 +159,8 @@ export function AccountWizardModal({
     if (!userForm.user_name?.trim()) {
       return { valid: false, firstInvalidFieldId: "user_name", message: "Please enter the user name." };
     }
-    const hasUserType = (userForm.user_type != null && userForm.user_type > 0) || (supervisorValueId ?? 0) > 0;
+    const hasUserType =
+      (userForm.user_type != null && userForm.user_type !== -1) || (administratorValueId ?? -1) !== -1;
     if (!hasUserType) {
       return { valid: false, firstInvalidFieldId: "user_type", message: "Please select the user type." };
     }
@@ -161,7 +181,7 @@ export function AccountWizardModal({
       return { valid: false, firstInvalidFieldId: "user_status", message: "Please select the status." };
     }
     return { valid: true, firstInvalidFieldId: null, message: "" };
-  }, [userForm.user_name, userForm.user_type, userForm.user_professional_grade, userForm.mobile_phone, userForm.email_address, userForm.status, supervisorValueId]);
+  }, [userForm.user_name, userForm.user_type, userForm.user_professional_grade, userForm.mobile_phone, userForm.email_address, userForm.status, administratorValueId]);
 
   const isAccountValid =
     !!accountForm.account_name?.trim() &&
@@ -175,7 +195,7 @@ export function AccountWizardModal({
     serviceOfficeForm.status >= 1;
   const isUserValid =
     !!userForm.user_name?.trim() &&
-    (userForm.user_type != null ? userForm.user_type > 0 : (supervisorValueId ?? 0) > 0) &&
+    (userForm.user_type != null ? userForm.user_type !== -1 : (administratorValueId ?? -1) !== -1) &&
     userForm.user_professional_grade != null &&
     userForm.user_professional_grade !== undefined &&
     !!userForm.mobile_phone?.trim() &&
@@ -308,7 +328,7 @@ export function AccountWizardModal({
         body: JSON.stringify({
           ...userForm,
           service_office_id: serviceOffice.service_office_id,
-          user_type: supervisorValueId ?? userForm.user_type,
+          user_type: administratorValueId ?? userForm.user_type,
           user_professional_grade: userForm.user_professional_grade!,
         }),
       });
@@ -317,7 +337,7 @@ export function AccountWizardModal({
         throw new Error(data.error || "Failed to create user");
       }
 
-      onNotify(`Account "${account.account_name}" created with service office and supervisor`, "create");
+      onNotify(`Account "${account.account_name}" created with service office and administrator`, "create");
       resetWizard();
       onClose();
       onSuccess();
@@ -370,9 +390,9 @@ export function AccountWizardModal({
   };
 
   const tabs = [
-    { id: 0 as const, label: "Account", valid: isAccountValid },
-    { id: 1 as const, label: "Service Office", valid: isServiceOfficeValid },
-    { id: 2 as const, label: "User (Supervisor)", valid: isUserValid },
+    { id: 0 as const, label: t("Account"), valid: isAccountValid },
+    { id: 1 as const, label: t("Service Office"), valid: isServiceOfficeValid },
+    { id: 2 as const, label: t("User (Administrator)"), valid: isUserValid },
   ];
 
   return (
@@ -388,7 +408,7 @@ export function AccountWizardModal({
           <div className="flex-shrink-0 p-6 border-b border-slate-100">
             <h2 className="text-xl font-bold text-slate-900">{t("New Account Wizard")}</h2>
             <p className="mt-1 text-sm text-slate-500">
-              {t("Create an account with its first service office and supervisor user")}
+              {t("Create an account with its first service office and administrator user")}
             </p>
             <div className="mt-4 flex gap-2">
               {tabs.map((tab) => (
@@ -446,14 +466,18 @@ export function AccountWizardModal({
               <ServiceOfficeUserModal
                 isOpen
                 editingUser={null}
-                form={{ ...userForm, service_office_id: 0 }}
+                form={{
+                  ...userForm,
+                  service_office_id: 0,
+                  user_professional_grade: userForm.user_professional_grade ?? 0,
+                }}
                 serviceOffices={[]}
                 subcontractors={[]}
                 isSaving={false}
                 fixedServiceOfficeId={null}
                 embedded
                 fixedServiceOfficeName={serviceOfficeForm.service_office_name || undefined}
-                fixedUserTypeValueId={supervisorValueId ?? undefined}
+                fixedUserTypeValueId={administratorValueId ?? undefined}
                 onClose={() => {}}
                 onSave={() => {}}
                 onChange={(u) => setUserForm((prev) => ({ ...prev, ...u }))}
@@ -478,7 +502,7 @@ export function AccountWizardModal({
                   disabled={isSaving}
                   className="px-5 py-3 sm:py-2.5 rounded-xl text-slate-600 font-medium hover:bg-slate-100 border border-slate-200"
                 >
-                  Back
+                  {t("Back")}
                 </button>
               )}
               {activeTab < 2 ? (

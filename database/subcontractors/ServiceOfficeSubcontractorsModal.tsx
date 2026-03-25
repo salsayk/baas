@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "@/app/context/TranslationContext";
 import { SubcontractorModal } from "@/database/subcontractors/SubcontractorModal";
 import type { CreateSubcontractorInput, Subcontractor } from "@/database/subcontractors/types";
 
@@ -33,6 +34,7 @@ export function ServiceOfficeSubcontractorsModal({
   onClose,
   onNotify,
 }: ServiceOfficeSubcontractorsModalProps) {
+  const { t } = useTranslations();
   const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -161,15 +163,15 @@ export function ServiceOfficeSubcontractorsModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[40] flex items-center justify-center p-4">
         <div className="absolute inset-0 backdrop-blur-sm" style={{ backgroundColor: "rgba(0,0,0,0.4)" }} onClick={onClose} aria-hidden="true" />
         <div className="relative w-full max-w-5xl max-h-[96vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
           <div className="p-4 lg:p-6 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
             <div>
               <h2 className="text-xl font-bold text-slate-900">
-                Subcontractors — {serviceOffice?.service_office_name ?? ""}
+                {t("Subcontractors")} — {serviceOffice?.service_office_name ?? ""}
               </h2>
-              <p className="mt-1 text-sm text-slate-500">Manage subcontractors for this service office</p>
+              <p className="mt-1 text-sm text-slate-500">{t("Manage subcontractors for this service office")}</p>
               <div className="mt-3">
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
                   Service Office
@@ -189,11 +191,14 @@ export function ServiceOfficeSubcontractorsModal({
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={openAddForm}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openAddForm();
+                }}
                 disabled={!serviceOffice}
                 className="px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
               >
-                Add Subcontractor
+                {t("Add Subcontractor")}
               </button>
               <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500" aria-label="Close">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -209,8 +214,12 @@ export function ServiceOfficeSubcontractorsModal({
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/50">
                   <th className="px-4 lg:px-6 py-3 text-start text-xs font-semibold text-slate-500 uppercase">Name</th>
-                  <th className="px-4 lg:px-6 py-3 text-start text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">Contact Person</th>
-                  <th className="px-4 lg:px-6 py-3 text-start text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Phone</th>
+                  <th className="px-4 lg:px-6 py-3 text-start text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">
+                    {t("Contact Person")}
+                  </th>
+                  <th className="px-4 lg:px-6 py-3 text-start text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">
+                    {t("Phone")}
+                  </th>
                   <th className="px-4 lg:px-6 py-3 text-start text-xs font-semibold text-slate-500 uppercase">Status</th>
                   <th className="px-4 lg:px-6 py-3 text-end text-xs font-semibold text-slate-500 uppercase">Actions</th>
                 </tr>
@@ -219,7 +228,11 @@ export function ServiceOfficeSubcontractorsModal({
                 {isLoading ? (
                   <tr><td colSpan={5} className="px-4 lg:px-6 py-12 text-center text-slate-500">Loading...</td></tr>
                 ) : subcontractors.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 lg:px-6 py-12 text-center text-slate-500">No subcontractors yet. Click "Add Subcontractor".</td></tr>
+                  <tr>
+                    <td colSpan={5} className="px-4 lg:px-6 py-12 text-center text-slate-500">
+                      {t('No subcontractors yet. Click "Add Subcontractor".')}
+                    </td>
+                  </tr>
                 ) : (
                   subcontractors.map((subcontractor) => (
                     <tr key={subcontractor.subcontractor_id} className="hover:bg-slate-50/50">

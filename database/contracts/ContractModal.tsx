@@ -29,6 +29,7 @@ interface ContractModalProps {
   customers: CustomerOption[];
   contractTypes: LookupValue[];
   ppProformaRecurrences: LookupValue[];
+  ppProformaOccasions: LookupValue[];
   isSaving: boolean;
   serviceOfficeId: number;
   onClose: () => void;
@@ -45,6 +46,7 @@ export function ContractModal({
   customers,
   contractTypes,
   ppProformaRecurrences,
+  ppProformaOccasions,
   isSaving,
   serviceOfficeId,
   onClose,
@@ -57,6 +59,14 @@ export function ContractModal({
   const fieldRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | HTMLButtonElement | null>>({});
 
   const amountDisabled = form.contract_type != null && CONTRACT_TYPES_AMOUNT_DISABLED.includes(form.contract_type);
+
+  useEffect(() => {
+    if (!isOpen || ppProformaRecurrences.length === 0) return;
+    const selected = ppProformaRecurrences.find((r) => Number(r.value_id) === form.pp_proforma_recurrence);
+    if (selected && selected.value_name.toLowerCase() === "none" && !(form.pp_proforma_occasion ?? "").trim()) {
+      onChange({ pp_proforma_occasion: selected.value_name });
+    }
+  }, [isOpen, form.pp_proforma_recurrence, form.pp_proforma_occasion, ppProformaRecurrences, onChange]);
 
   const validateAndFocus = useCallback((): boolean => {
     if (!form.contract_name?.trim()) {
@@ -299,7 +309,7 @@ export function ContractModal({
 
               <div>
                 <label htmlFor="contract_start_date" className="block text-sm font-medium text-slate-700 mb-2">
-                  Contract Start Date <span className="text-red-500">*</span>
+                  {t("Contract start date")} <span className="text-red-500">*</span>
                 </label>
                 <input
                   ref={(el) => { fieldRefs.current.contract_start_date = el; }}
@@ -314,7 +324,7 @@ export function ContractModal({
 
               <div>
                 <label htmlFor="contract_optional_end_date" className="block text-sm font-medium text-slate-700 mb-2">
-                  {t("Contract Optional End Date")}
+                  {t("Contract optional end date")}
                 </label>
                 <input
                   id="contract_optional_end_date"
@@ -328,7 +338,7 @@ export function ContractModal({
 
               <div>
                 <label htmlFor="contract_amount_value" className="block text-sm font-medium text-slate-700 mb-2">
-                  Contract Amount Value {!amountDisabled && <span className="text-red-500">*</span>}
+                  {t("Contract amount value")} {!amountDisabled && <span className="text-red-500">*</span>}
                 </label>
                 <input
                   ref={(el) => { fieldRefs.current.contract_amount_value = el; }}
@@ -349,7 +359,7 @@ export function ContractModal({
 
               <div>
                 <label htmlFor="contract_currency" className="block text-sm font-medium text-slate-700 mb-2">
-                  {t("Contract Currency")} <span className="text-red-500">*</span>
+                  {t("Contract currency")} <span className="text-red-500">*</span>
                 </label>
                 <select
                   ref={(el) => { fieldRefs.current.contract_currency = el ?? null; }}
@@ -372,20 +382,33 @@ export function ContractModal({
           )}
 
           {/* Tab: PP Proforma */}
-          {activeTab === "pp" && (
+          {activeTab === "pp" && (() => {
+            const selectedRecurrence = ppProformaRecurrences.find((r) => Number(r.value_id) === form.pp_proforma_recurrence);
+            const isOccasionDisabled = !!selectedRecurrence && selectedRecurrence.value_name.toLowerCase() === "none";
+            return (
           <div data-tab="pp" className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="pp_proforma_recurrence" className="block text-sm font-medium text-slate-700 mb-2">
-                  {t("PP Proforma Recurrence")} <span className="text-red-500">*</span>
+                  {t("PP Proforma recurrence")} <span className="text-red-500">*</span>
                 </label>
                 <select
                   ref={(el) => { fieldRefs.current.pp_proforma_recurrence = el ?? null; }}
                   id="pp_proforma_recurrence"
                   value={form.pp_proforma_recurrence != null ? form.pp_proforma_recurrence : ""}
-                  onChange={(e) =>
-                    onChange({ pp_proforma_recurrence: e.target.value ? parseInt(e.target.value, 10) : 0 })
-                  }
+                  onChange={(e) => {
+                    const val = e.target.value ? parseInt(e.target.value, 10) : 0;
+                    const selected = ppProformaRecurrences.find((r) => Number(r.value_id) === val);
+                    const updates: Partial<CreateContractInput & { status: number }> = {
+                      pp_proforma_recurrence: val,
+                    };
+                    if (selected && selected.value_name.toLowerCase() === "none") {
+                      updates.pp_proforma_occasion = selected.value_name;
+                    } else {
+                      updates.pp_proforma_occasion = "";
+                    }
+                    onChange(updates);
+                  }}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
                   disabled={isSaving}
                 >
@@ -400,17 +423,32 @@ export function ContractModal({
 
               <div>
                 <label htmlFor="pp_proforma_occasion" className="block text-sm font-medium text-slate-700 mb-2">
-                  PP Proforma Occasion <span className="text-red-500">*</span>
+                  {t("PP Proforma occasion")} <span className="text-red-500">*</span>
+                  <span
+                    className="ml-1 inline-flex align-middle text-slate-400 hover:text-slate-600 cursor-help"
+                    title={
+                      form.pp_proforma_recurrence != null && form.pp_proforma_recurrence !== undefined
+                        ? (ppProformaOccasions.find((o) => Number(o.value_id) === form.pp_proforma_recurrence)
+                            ?.value_name ?? t("No suggested value for this recurrence"))
+                        : t("Select a recurrence to see suggested occasion")
+                    }
+                    aria-label={t("Suggested value for selected recurrence")}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M12 16v-4M12 8h.01" />
+                    </svg>
+                  </span>
                 </label>
                 <input
                   ref={(el) => { fieldRefs.current.pp_proforma_occasion = el; }}
                   id="pp_proforma_occasion"
                   type="text"
-                  maxLength={10}
+                  maxLength={20}
                   value={form.pp_proforma_occasion ?? ""}
                   onChange={(e) => onChange({ pp_proforma_occasion: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
-                  disabled={isSaving}
+                  className={`w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 ${isOccasionDisabled ? "bg-slate-100 cursor-not-allowed" : ""}`}
+                  disabled={isSaving || isOccasionDisabled}
                 />
               </div>
 
@@ -439,7 +477,7 @@ export function ContractModal({
                 </div>
                 <div>
                   <label htmlFor="pp_initial_amount_value" className="block text-sm font-medium text-slate-700 mb-2">
-                    {t("PP Initial Amount Value")} <span className="text-red-500">*</span>
+                    {t("PP Initial amount value")} <span className="text-red-500">*</span>
                   </label>
                   <input
                     ref={(el) => { fieldRefs.current.pp_initial_amount_value = el; }}
@@ -482,7 +520,7 @@ export function ContractModal({
                 </div>
                 <div>
                   <label htmlFor="pp_upper_cap_amount_value" className="block text-sm font-medium text-slate-700 mb-2">
-                    {t("PP Upper Cap Amount Value")} <span className="text-red-500">*</span>
+                    {t("PP Upper cap amount value")} <span className="text-red-500">*</span>
                   </label>
                   <input
                     ref={(el) => { fieldRefs.current.pp_upper_cap_amount_value = el; }}
@@ -525,7 +563,7 @@ export function ContractModal({
                 </div>
                 <div>
                   <label htmlFor="pp_recurrence_initial_amount_value" className="block text-sm font-medium text-slate-700 mb-2">
-                    {t("PP Recurrence Initial Amount Value")} <span className="text-red-500">*</span>
+                    {t("PP recurrence Initial amount value")} <span className="text-red-500">*</span>
                   </label>
                   <input
                     ref={(el) => { fieldRefs.current.pp_recurrence_initial_amount_value = el; }}
@@ -548,7 +586,7 @@ export function ContractModal({
               <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
-                    {t("PP Recurrence Upper Cap Reached Indicator")} <span className="text-red-500">*</span>
+                    {t("PP recurrence Upper cap reached indicator")} <span className="text-red-500">*</span>
                   </label>
                   <div className="flex gap-3">
                     {([1, 0] as const).map((v) => (
@@ -570,7 +608,7 @@ export function ContractModal({
                 </div>
                 <div>
                   <label htmlFor="pp_recurrence_upper_cap_amount_value" className="block text-sm font-medium text-slate-700 mb-2">
-                    {t("PP Recurrence Upper Cap Amount Value")} <span className="text-red-500">*</span>
+                    {t("PP recurrence Upper cap amount value")} <span className="text-red-500">*</span>
                   </label>
                   <input
                     ref={(el) => { fieldRefs.current.pp_recurrence_upper_cap_amount_value = el; }}
@@ -612,7 +650,8 @@ export function ContractModal({
               </div>
             </div>
           </div>
-          )}
+            );
+          })()}
 
           <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 pt-4 border-t border-slate-100">
             <button

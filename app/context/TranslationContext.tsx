@@ -29,9 +29,9 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
   const fetchTranslations = useCallback(async () => {
     setLoadingTranslations(true);
     try {
-      const res = await fetch(`/api/translations/public?languageId=${languageId}`, {
+      const res = await fetch(`/api/translations/public?languageId=${languageId}&_=${Date.now()}`, {
         cache: "no-store",
-        headers: { "Cache-Control": "no-cache" },
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
       });
       if (!res.ok) {
         setDictionary({});

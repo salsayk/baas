@@ -377,7 +377,13 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
       <nav className="flex-1 px-3 lg:px-4 py-2 overflow-y-auto">
         <ul className="space-y-1">
           {navItems.filter((item) => !item.hidden).map((item) => {
-            const isActive = item.external ? false : pathname === item.href;
+            const isOnDashboards = pathname === "/dashboards";
+            // `Overview` (dashboards) is hidden from the sidebar, but we still want a default
+            // selection so the UI doesn't feel like nothing is selected.
+            const isActive =
+              item.external
+                ? false
+                : pathname === item.href || (isOnDashboards && item.href === "/accounts");
             return (
               <li key={item.name}>
                 <NavItemLink item={item} isActive={isActive} onClick={onNavClick} />

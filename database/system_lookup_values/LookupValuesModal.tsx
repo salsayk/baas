@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { SystemLookupValue, CreateSystemLookupValueInput } from "@/database/system_lookup_values/types";
+import type { Language } from "@/database/Languages/types";
 
 interface LookupValuesModalProps {
   isOpen: boolean;

@@ -170,7 +170,9 @@ export function ServiceOfficeUserModal({
     (fixedServiceOfficeId != null && fixedServiceOfficeId > 0) ||
     (!!fixedServiceOfficeName && fixedServiceOfficeName.trim() !== "");
   const subcontractorRequired = form.user_type === SUBCONTRACTOR_USER_TYPE_VALUE_ID;
-  const userTypeFixed = fixedUserTypeValueId != null && fixedUserTypeValueId > 0;
+  const resolvedFixedUserType =
+    fixedUserTypeValueId != null ? userTypes.find((v) => v.value_id === fixedUserTypeValueId) : undefined;
+  const userTypeFixed = fixedUserTypeValueId != null && resolvedFixedUserType != null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,7 +185,7 @@ export function ServiceOfficeUserModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <label htmlFor="user_name" className="block text-sm font-medium text-slate-700 mb-2">
-                User Name <span className="text-red-500">*</span>
+                {t("User Name")} <span className="text-red-500">*</span>
               </label>
               <input
                 id="user_name"
@@ -204,20 +206,19 @@ export function ServiceOfficeUserModal({
               {userTypeFixed ? (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-slate-900 font-medium">
-                    {userTypes.find((v) => v.value_id === fixedUserTypeValueId)?.value_name ??
-                      "Service office supervisor"}
+                    {resolvedFixedUserType?.value_name}
                   </p>
                 </div>
               ) : (
                 <select
                   id="user_type"
-                  value={form.user_type ?? ""}
-                  onChange={(e) => handleUserTypeChange(e.target.value ? parseInt(e.target.value, 10) : 0)}
+                  value={form.user_type ?? -1}
+                  onChange={(e) => handleUserTypeChange(parseInt(e.target.value, 10))}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900"
                   required
                   disabled={isSaving}
                 >
-                  <option value="">{t("Select user type")}</option>
+                  <option value={-1}>{t("Select user type")}</option>
                   {userTypes.map((v) => (
                     <option key={v.value_id} value={v.value_id}>
                       {v.value_name}
@@ -229,7 +230,7 @@ export function ServiceOfficeUserModal({
 
             <div>
               <label htmlFor="user_professional_grade" className="block text-sm font-medium text-slate-700 mb-2">
-                User Professional Grade <span className="text-red-500">*</span>
+                {t("User Professional Grade")} <span className="text-red-500">*</span>
               </label>
               <select
                 id="user_professional_grade"
@@ -281,7 +282,7 @@ export function ServiceOfficeUserModal({
 
             <div className="sm:col-span-2">
               <label htmlFor="subcontractor_id" className="block text-sm font-medium text-slate-700 mb-2">
-                Subcontractor {subcontractorRequired && <span className="text-red-500">*</span>}
+                {t("Subcontractor")} {subcontractorRequired && <span className="text-red-500">*</span>}
               </label>
               <div className="flex gap-2">
                 <select
@@ -322,7 +323,7 @@ export function ServiceOfficeUserModal({
 
             <div>
               <label htmlFor="mobile_phone" className="block text-sm font-medium text-slate-700 mb-2">
-                Mobile Phone <span className="text-red-500">*</span>
+                {t("Mobile Phone")} <span className="text-red-500">*</span>
               </label>
               <input
                 id="mobile_phone"
@@ -353,7 +354,7 @@ export function ServiceOfficeUserModal({
 
             <div className="sm:col-span-2">
               <label htmlFor="email_address" className="block text-sm font-medium text-slate-700 mb-2">
-                Email Address <span className="text-red-500">*</span>
+                {t("Email Address")} <span className="text-red-500">*</span>
               </label>
               <input
                 id="email_address"
@@ -383,7 +384,7 @@ export function ServiceOfficeUserModal({
                       : "border-slate-200 text-slate-600 hover:border-slate-300"
                   }`}
                 >
-                  {STATUS_LABELS[s]}
+                  {t(STATUS_LABELS[s])}
                 </button>
               ))}
             </div>
@@ -413,7 +414,7 @@ export function ServiceOfficeUserModal({
                 }
                 className="px-5 py-3 sm:py-2.5 rounded-xl bg-violet-600 text-white font-medium disabled:opacity-50"
               >
-                {editingUser ? "Update" : "Create"}
+                {editingUser ? t("Update") : t("Create")}
               </button>
             </div>
           )}

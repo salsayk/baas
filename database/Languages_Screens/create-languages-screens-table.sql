@@ -20,6 +20,7 @@ INSERT INTO languages_screens (screen_name) VALUES
   ('accounts'),
   ('service-offices'),
   ('customers'),
+  ('contracts'),
   ('system-lookups'),
   ('languages'),
   ('language-labels'),

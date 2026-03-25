@@ -92,6 +92,7 @@ function ContractsContent() {
   const [customers, setCustomers] = useState<{ customer_id: number; customer_name: string }[]>([]);
   const [contractTypes, setContractTypes] = useState<{ value_id: number; value_name: string }[]>([]);
   const [ppProformaRecurrences, setPpProformaRecurrences] = useState<{ value_id: number; value_name: string }[]>([]);
+  const [ppProformaOccasions, setPpProformaOccasions] = useState<{ value_id: number; value_name: string }[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
@@ -104,8 +105,12 @@ function ContractsContent() {
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const { t } = useTranslations();
+  const { t, refreshTranslations } = useTranslations();
   const { languageId } = useLanguage();
+
+  useEffect(() => {
+    refreshTranslations();
+  }, [refreshTranslations]);
   const {
     notifications,
     dismissNotification,
@@ -200,15 +205,23 @@ function ContractsContent() {
       const ppRecurrenceLookup = lookups.find(
         (l: { lookup_table_name: string }) => l.lookup_table_name === "PP Proforma Recurrence"
       );
+      const ppOccasionLookup = lookups.find(
+        (l: { lookup_table_name: string }) =>
+          l.lookup_table_name === "PP Proforma occasion" || l.lookup_table_name === "PP Proforma Occasion"
+      );
 
+      const emptyResponse = new Response(null, { status: 500 });
       const langParam = languageId ? `&language_id=${languageId}` : "";
-      const [ctRes, ppRes] = await Promise.all([
+      const [ctRes, ppRes, occasionRes] = await Promise.all([
         contractTypeLookup
           ? fetch(`/api/system-lookup-values?lookup_table_id=${contractTypeLookup.lookup_table_id}${langParam}`)
-          : Promise.resolve({ ok: false }),
+          : Promise.resolve(emptyResponse),
         ppRecurrenceLookup
           ? fetch(`/api/system-lookup-values?lookup_table_id=${ppRecurrenceLookup.lookup_table_id}${langParam}`)
-          : Promise.resolve({ ok: false }),
+          : Promise.resolve(emptyResponse),
+        ppOccasionLookup
+          ? fetch(`/api/system-lookup-values?lookup_table_id=${ppOccasionLookup.lookup_table_id}${langParam}`)
+          : Promise.resolve(emptyResponse),
       ]);
 
       if (ctRes.ok) {
@@ -219,9 +232,14 @@ function ContractsContent() {
         const data = await ppRes.json();
         setPpProformaRecurrences(Array.isArray(data) ? data : []);
       }
+      if (occasionRes.ok) {
+        const data = await occasionRes.json();
+        setPpProformaOccasions(Array.isArray(data) ? data : []);
+      }
     } catch {
       setContractTypes([]);
       setPpProformaRecurrences([]);
+      setPpProformaOccasions([]);
     }
   }, [languageId]);
 
@@ -244,16 +262,32 @@ function ContractsContent() {
   const resetModal = () => {
     setIsModalOpen(false);
     setEditingContract(null);
-    setForm(
-      getDefaultForm(selectedServiceOfficeId === "" ? 0 : selectedServiceOfficeId)
-    );
+    const base = getDefaultForm(selectedServiceOfficeId === "" ? 0 : selectedServiceOfficeId);
+    const firstRecurrence = ppProformaRecurrences[0];
+    if (firstRecurrence?.value_name.toLowerCase() === "none") {
+      setForm({
+        ...base,
+        pp_proforma_recurrence: Number(firstRecurrence.value_id),
+        pp_proforma_occasion: firstRecurrence.value_name,
+      });
+    } else {
+      setForm(base);
+    }
   };
 
   const openCreateModal = () => {
     setEditingContract(null);
-    setForm(
-      getDefaultForm(selectedServiceOfficeId === "" ? 0 : selectedServiceOfficeId)
-    );
+    const base = getDefaultForm(selectedServiceOfficeId === "" ? 0 : selectedServiceOfficeId);
+    const firstRecurrence = ppProformaRecurrences[0];
+    if (firstRecurrence?.value_name.toLowerCase() === "none") {
+      setForm({
+        ...base,
+        pp_proforma_recurrence: Number(firstRecurrence.value_id),
+        pp_proforma_occasion: firstRecurrence.value_name,
+      });
+    } else {
+      setForm(base);
+    }
     setIsModalOpen(true);
   };
 
@@ -308,10 +342,12 @@ function ContractsContent() {
           throw new Error(data.error || "Failed to update contract");
         }
         const updated = await res.json();
+        const updatedId = Number(updated.contract_id);
         setContracts((prev) =>
-          prev.map((c) => (c.contract_id === updated.contract_id ? updated : c))
+          prev.map((c) => (Number(c.contract_id) === updatedId ? { ...c, ...updated, contract_id: updatedId } : c))
         );
         notifyUpdate(`"${updated.contract_name}" updated`);
+        await fetchContracts();
       } else {
         const res = await fetch("/api/contracts", {
           method: "POST",
@@ -438,7 +474,7 @@ function ContractsContent() {
                   {isLoadingContracts ? (
                     <tr>
                       <td colSpan={5} className="px-4 lg:px-6 py-16 text-center text-slate-500">
-                        Loading contracts...
+                        {t("Loading contracts...")}
                       </td>
                     </tr>
                   ) : selectedServiceOfficeId === "" ? (
@@ -450,7 +486,7 @@ function ContractsContent() {
                   ) : contracts.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-4 lg:px-6 py-16 text-center text-slate-500">
-                        No contracts yet. Add one for this service office.
+                        {t("No contracts yet. Add one for this service office.")}
                       </td>
                     </tr>
                   ) : (
@@ -537,6 +573,7 @@ function ContractsContent() {
         customers={customers}
         contractTypes={contractTypes}
         ppProformaRecurrences={ppProformaRecurrences}
+        ppProformaOccasions={ppProformaOccasions}
         isSaving={isSaving}
         serviceOfficeId={selectedServiceOfficeId === "" ? 0 : selectedServiceOfficeId}
         onClose={resetModal}

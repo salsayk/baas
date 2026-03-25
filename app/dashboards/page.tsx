@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
 import { NotificationContainer, useNotifications } from "@/app/components/notifications";
 import { Sidebar, SidebarProvider, MobileMenuButton } from "@/app/components/sidebar";
 
@@ -195,6 +195,8 @@ function ApiKeyCard({
 
 function DashboardContent() {
   const [mounted, setMounted] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const didResetScrollRef = useRef(false);
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingKey, setEditingKey] = useState<ApiKey | null>(null);
@@ -221,6 +223,52 @@ function DashboardContent() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Prevent landing scrolled-down (e.g. on the API Keys section) when returning to /dashboards.
+  // We use `useLayoutEffect` + multiple frames to beat browser/Next scroll restoration.
+  useLayoutEffect(() => {
+    const historyObj = window.history as History & { scrollRestoration?: string };
+    const canControl = typeof historyObj !== "undefined" && "scrollRestoration" in historyObj;
+    const prevScrollRestoration = canControl ? historyObj.scrollRestoration : undefined;
+    if (canControl) historyObj.scrollRestoration = "manual";
+
+    const doReset = (framesLeft: number) => {
+      const el = scrollContainerRef.current;
+      if (el) {
+        el.scrollTop = 0;
+        el.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      }
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      window.scrollTo(0, 0);
+
+      if (framesLeft <= 0) return;
+      requestAnimationFrame(() => doReset(framesLeft - 1));
+    };
+
+    doReset(6);
+
+    return () => {
+      if (canControl && prevScrollRestoration != null) historyObj.scrollRestoration = prevScrollRestoration;
+    };
+  }, []);
+
+  // Some browsers/Next restore scroll after content/layout changes.
+  // Do a second reset after loading completes (once per mount).
+  useEffect(() => {
+    if (didResetScrollRef.current) return;
+    if (isLoading) return;
+    didResetScrollRef.current = true;
+    const el = scrollContainerRef.current;
+    if (el) {
+      el.scrollTop = 0;
+      el.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
+    // Also reset document scroll (defensive; in case overflow containers differ).
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    window.scrollTo(0, 0);
+  }, [isLoading]);
 
   const fetchApiKeys = useCallback(async () => {
     try {
@@ -433,7 +481,7 @@ function DashboardContent() {
         </header>
 
         {/* Page Content */}
-        <div className="flex-1 p-4 lg:p-8 overflow-auto">
+        <div ref={scrollContainerRef} className="flex-1 p-4 lg:p-8 overflow-auto">
           <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 mb-6 lg:mb-8">Overview</h1>
 
           {/* Error Alert */}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTranslations } from "@/app/context/TranslationContext";
 import type { Project } from "@/database/project/types";
 import type { Contract } from "@/database/contracts/types";
 
@@ -41,6 +42,7 @@ export function AssignContractsModal({
   onClose,
   onSaved,
 }: AssignContractsModalProps) {
+  const { t } = useTranslations();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [items, setItems] = useState<ContractItem[]>([]);
   const [existingPairs, setExistingPairs] = useState<EntityPair[]>([]);
@@ -199,10 +201,10 @@ export function AssignContractsModal({
       <div className="relative w-full sm:max-w-2xl bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[96vh] overflow-auto">
         <div className="sticky top-0 bg-white dark:bg-slate-900 p-6 border-b border-slate-100 dark:border-slate-700 rounded-t-2xl sm:rounded-t-2xl z-10">
           <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-            Assign Contracts
+            {t("Assign Contracts")}
           </h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Select contracts for &quot;{project?.project_name}&quot; and drag to reorder
+            {t("Select contracts for")} &quot;{project?.project_name}&quot; {t("and drag to reorder")}
           </p>
         </div>
 
@@ -214,10 +216,10 @@ export function AssignContractsModal({
           )}
 
           {isLoading ? (
-            <p className="py-8 text-center text-slate-500">Loading contracts...</p>
+            <p className="py-8 text-center text-slate-500">{t("Loading contracts...")}</p>
           ) : items.length === 0 ? (
             <p className="py-8 text-center text-slate-500">
-              No contracts for this customer
+              {t("No contracts for this customer")}
             </p>
           ) : (
             <ul className="space-y-1">
@@ -272,7 +274,7 @@ export function AssignContractsModal({
             onClick={onClose}
             className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           >
-            Cancel
+            {t("Cancel")}
           </button>
           <button
             type="button"
@@ -280,7 +282,7 @@ export function AssignContractsModal({
             disabled={isSaving || isLoading || !items.some((i) => i.selected)}
             className="px-4 py-2 rounded-xl bg-violet-600 text-white font-medium hover:bg-violet-700 disabled:opacity-50"
           >
-            {isSaving ? "Saving..." : "Save"}
+            {isSaving ? t("Saving...") : t("Save")}
           </button>
         </div>
       </div>
