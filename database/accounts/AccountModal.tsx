@@ -81,7 +81,7 @@ export function AccountModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="mobile_phone" className="block text-sm font-medium text-slate-700 mb-2">
-                  Mobile Phone
+                  {t("Mobile Phone")} <span className="text-red-500">*</span>
                 </label>
                 <input
                   id="mobile_phone"
@@ -91,6 +91,7 @@ export function AccountModal({
                   onChange={(e) => onChange({ mobile_phone: e.target.value || null })}
                   placeholder="+1 234 567 8900"
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all"
+                  required
                   disabled={isSaving}
                 />
               </div>
@@ -122,6 +123,7 @@ export function AccountModal({
                 onChange={(e) => onChange({ email_address: e.target.value || null })}
                 placeholder="contact@example.com"
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all"
+                required
                 disabled={isSaving}
               />
             </div>
@@ -282,7 +284,12 @@ export function AccountModal({
               </button>
               <button
                 type="submit"
-                disabled={!form.account_name?.trim() || isSaving}
+                disabled={
+                  !form.account_name?.trim() ||
+                  !form.mobile_phone?.trim() ||
+                  !form.email_address?.trim() ||
+                  isSaving
+                }
                 className="px-5 py-3 sm:py-2.5 rounded-xl bg-violet-600 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-violet-700 transition-colors flex items-center justify-center gap-2"
               >
                 {isSaving && (

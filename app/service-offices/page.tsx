@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTranslations } from "@/app/context/TranslationContext";
 import { NotificationContainer, useNotifications } from "@/app/components/notifications";
 import { Sidebar, SidebarProvider, MobileMenuButton } from "@/app/components/sidebar";
 import { ServiceOfficeModal } from "@/database/Service_Offices/ServiceOfficeModal";
@@ -36,6 +37,11 @@ const defaultForm: CreateServiceOfficeInput & { status: number } = {
 };
 
 function ServiceOfficesContent() {
+  const { t, refreshTranslations } = useTranslations();
+  useEffect(() => {
+    refreshTranslations();
+  }, [refreshTranslations]);
+
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<number | "">("");
   const [offices, setOffices] = useState<ServiceOffice[]>([]);
@@ -405,7 +411,7 @@ function ServiceOfficesContent() {
                                 })
                               }
                               className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-                              title="Manage users"
+                              title={t("Manage users")}
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>

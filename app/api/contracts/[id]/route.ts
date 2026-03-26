@@ -9,6 +9,13 @@ interface RouteParams {
 
 const CONTRACT_TYPES_AMOUNT_DISABLED = [2, 4];
 
+const PP_RECURRENCE_CAP_KEYS = [
+  "pp_recurrence_initial_payment_reached_indicator",
+  "pp_recurrence_initial_amount_value",
+  "pp_recurrence_upper_cap_reached_indicator",
+  "pp_recurrence_upper_cap_amount_value",
+] as const;
+
 export async function PATCH(request: Request, { params }: RouteParams) {
   try {
     const { user, error: authError } = await getAuthenticatedUser();
@@ -74,7 +81,11 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     await client.connect();
     try {
       const currentRes = await client.query(
-        `SELECT c.contract_id, c.service_office_id
+        `SELECT c.contract_id, c.service_office_id, c.contract_type,
+                c.pp_recurrence_initial_payment_reached_indicator,
+                c.pp_recurrence_initial_amount_value,
+                c.pp_recurrence_upper_cap_reached_indicator,
+                c.pp_recurrence_upper_cap_amount_value
          FROM contracts c
          INNER JOIN service_offices so ON so.service_office_id = c.service_office_id AND so.status != 3
          INNER JOIN accounts a ON a.account_id = so.account_id AND a.user_id = $1
@@ -83,6 +94,69 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       );
       if (currentRes.rows.length === 0) {
         return NextResponse.json({ error: "Contract not found" }, { status: 404 });
+      }
+
+      const current = currentRes.rows[0] as Record<string, unknown>;
+      const previousContractType = Number(current.contract_type);
+      const effectiveContractType =
+        updates.contract_type !== undefined ? Number(updates.contract_type) : previousContractType;
+      const requiresPp = [2, 3].includes(effectiveContractType);
+      const switchingToHourlyFromType3 = previousContractType === 3 && effectiveContractType === 2;
+
+      // Type 3 (including 2→3): recurrence cap block is not used; always persist zeros.
+      if (requiresPp && effectiveContractType === 3) {
+        updates.pp_recurrence_initial_payment_reached_indicator = 0;
+        updates.pp_recurrence_initial_amount_value = 0;
+        updates.pp_recurrence_upper_cap_reached_indicator = 0;
+        updates.pp_recurrence_upper_cap_amount_value = 0;
+      }
+
+      // Type 2: must have complete recurrence cap data; 3→2 must send all four in this request
+      // (UI collects them when switching to hourly; avoids leaving type-3 zeros on an hourly contract).
+      if (requiresPp && effectiveContractType === 2) {
+        if (switchingToHourlyFromType3) {
+          for (const key of PP_RECURRENCE_CAP_KEYS) {
+            if (body[key] === undefined) {
+              return NextResponse.json(
+                {
+                  error:
+                    "When changing contract type from type 3 to hourly (type 2), all PP recurrence cap fields must be sent in the request",
+                },
+                { status: 400 }
+              );
+            }
+          }
+        }
+
+        const merged = {
+          pp_recurrence_initial_payment_reached_indicator:
+            updates.pp_recurrence_initial_payment_reached_indicator !== undefined
+              ? updates.pp_recurrence_initial_payment_reached_indicator
+              : current.pp_recurrence_initial_payment_reached_indicator,
+          pp_recurrence_initial_amount_value:
+            updates.pp_recurrence_initial_amount_value !== undefined
+              ? updates.pp_recurrence_initial_amount_value
+              : current.pp_recurrence_initial_amount_value,
+          pp_recurrence_upper_cap_reached_indicator:
+            updates.pp_recurrence_upper_cap_reached_indicator !== undefined
+              ? updates.pp_recurrence_upper_cap_reached_indicator
+              : current.pp_recurrence_upper_cap_reached_indicator,
+          pp_recurrence_upper_cap_amount_value:
+            updates.pp_recurrence_upper_cap_amount_value !== undefined
+              ? updates.pp_recurrence_upper_cap_amount_value
+              : current.pp_recurrence_upper_cap_amount_value,
+        };
+        if (
+          merged.pp_recurrence_initial_payment_reached_indicator == null ||
+          merged.pp_recurrence_initial_amount_value == null ||
+          merged.pp_recurrence_upper_cap_reached_indicator == null ||
+          merged.pp_recurrence_upper_cap_amount_value == null
+        ) {
+          return NextResponse.json(
+            { error: "PP recurrence cap fields are required for hourly (contract type 2) contracts" },
+            { status: 400 }
+          );
+        }
       }
 
       const setClause = Object.keys(updates)

@@ -93,11 +93,58 @@ export async function POST(request: Request) {
     if (!body.contract_currency?.trim()) {
       return NextResponse.json({ error: "Contract currency is required" }, { status: 400 });
     }
-    if (body.pp_proforma_recurrence == null || body.pp_proforma_recurrence === undefined) {
-      return NextResponse.json({ error: "PP Proforma recurrence is required" }, { status: 400 });
-    }
-    if (!body.pp_proforma_occasion?.trim()) {
-      return NextResponse.json({ error: "PP Proforma occasion is required" }, { status: 400 });
+
+    // UI wizard behavior:
+    // - PP tab is only shown for contract_type 2 or 3
+    // - For other contract types we still persist the PP columns, but we don't require user input
+    const requiresPp = [2, 3].includes(body.contract_type);
+    if (requiresPp) {
+      if (body.pp_proforma_recurrence == null || body.pp_proforma_recurrence === undefined) {
+        return NextResponse.json({ error: "PP Proforma recurrence is required" }, { status: 400 });
+      }
+      if (Number(body.pp_proforma_recurrence) === 0) {
+        return NextResponse.json({ error: "PP Proforma recurrence is required" }, { status: 400 });
+      }
+      if (!body.pp_proforma_occasion?.trim()) {
+        return NextResponse.json({ error: "PP Proforma occasion is required" }, { status: 400 });
+      }
+      // PP initial/recur values are required by the PP step UI.
+      if (body.pp_initial_payment_reached_indicator == null || body.pp_initial_payment_reached_indicator === undefined) {
+        return NextResponse.json({ error: "PP Initial payment reached indicator is required" }, { status: 400 });
+      }
+      if (body.pp_initial_amount_value == null || body.pp_initial_amount_value === undefined) {
+        return NextResponse.json({ error: "PP Initial amount value is required" }, { status: 400 });
+      }
+      if (body.pp_upper_cap_reached_indicator == null || body.pp_upper_cap_reached_indicator === undefined) {
+        return NextResponse.json({ error: "PP Upper cap reached indicator is required" }, { status: 400 });
+      }
+      if (body.pp_upper_cap_amount_value == null || body.pp_upper_cap_amount_value === undefined) {
+        return NextResponse.json({ error: "PP Upper cap amount value is required" }, { status: 400 });
+      }
+      // Recurrence-of-recurrence cap block is only collected in the UI for contract_type 2 (hourly).
+      if (body.contract_type === 2) {
+        if (body.pp_recurrence_initial_payment_reached_indicator == null || body.pp_recurrence_initial_payment_reached_indicator === undefined) {
+          return NextResponse.json(
+            { error: "PP recurrence Initial payment reached indicator is required" },
+            { status: 400 }
+          );
+        }
+        if (body.pp_recurrence_initial_amount_value == null || body.pp_recurrence_initial_amount_value === undefined) {
+          return NextResponse.json({ error: "PP recurrence Initial amount value is required" }, { status: 400 });
+        }
+        if (body.pp_recurrence_upper_cap_reached_indicator == null || body.pp_recurrence_upper_cap_reached_indicator === undefined) {
+          return NextResponse.json(
+            { error: "PP recurrence Upper cap reached indicator is required" },
+            { status: 400 }
+          );
+        }
+        if (body.pp_recurrence_upper_cap_amount_value == null || body.pp_recurrence_upper_cap_amount_value === undefined) {
+          return NextResponse.json(
+            { error: "PP recurrence Upper cap amount value is required" },
+            { status: 400 }
+          );
+        }
+      }
     }
 
     const amountDisabled = CONTRACT_TYPES_AMOUNT_DISABLED.includes(body.contract_type);
@@ -157,6 +204,7 @@ export async function POST(request: Request) {
       ];
 
       const placeholders = insertCols.map((_, i) => `$${i + 1}`).join(", ");
+      const ppType3 = body.contract_type === 3;
       const values = [
         body.contract_name.trim(),
         body.contract_description?.trim() || null,
@@ -168,16 +216,16 @@ export async function POST(request: Request) {
         body.contract_optional_end_date || null,
         contractAmountValue,
         body.contract_currency.trim().slice(0, 3),
-        body.pp_proforma_recurrence,
-        body.pp_proforma_occasion.trim().slice(0, 10),
+        body.pp_proforma_recurrence ?? 0,
+        (body.pp_proforma_occasion ?? "").trim().slice(0, 10),
         body.pp_initial_payment_reached_indicator ?? 0,
         body.pp_initial_amount_value ?? 0,
         body.pp_upper_cap_reached_indicator ?? 0,
         body.pp_upper_cap_amount_value ?? 0,
-        body.pp_recurrence_initial_payment_reached_indicator ?? 0,
-        body.pp_recurrence_initial_amount_value ?? 0,
-        body.pp_recurrence_upper_cap_reached_indicator ?? 0,
-        body.pp_recurrence_upper_cap_amount_value ?? 0,
+        ppType3 ? 0 : body.pp_recurrence_initial_payment_reached_indicator ?? 0,
+        ppType3 ? 0 : body.pp_recurrence_initial_amount_value ?? 0,
+        ppType3 ? 0 : body.pp_recurrence_upper_cap_reached_indicator ?? 0,
+        ppType3 ? 0 : body.pp_recurrence_upper_cap_amount_value ?? 0,
       ];
 
       const res = await client.query(

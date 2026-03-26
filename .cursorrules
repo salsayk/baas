@@ -41,4 +41,8 @@
     - Avoid for data fetching or state management.
   
   Follow Next.js docs for Data Fetching, Rendering, and Routing.
-  
+
+  Database translation SQL (database/Translations/)
+  - Never append new rows to an existing migration script that may already have been run in production.
+  - Always add new translation changes in a NEW .sql file (incremental migration), with a descriptive name.
+  - Reuse the same INSERT pattern (WITH screen, seed VALUES, ON CONFLICT DO UPDATE) as sibling scripts.

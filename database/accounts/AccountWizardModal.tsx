@@ -61,7 +61,7 @@ export function AccountWizardModal({
   onSuccess,
   onNotify,
 }: AccountWizardModalProps) {
-  const { t } = useTranslations();
+  const { t, refreshTranslations } = useTranslations();
   const [activeTab, setActiveTab] = useState<0 | 1 | 2>(0);
   const [accountForm, setAccountForm] = useState<CreateAccountInput & { status: number }>(defaultAccountForm);
   const [serviceOfficeForm, setServiceOfficeForm] = useState<CreateServiceOfficeInput & { status: number }>(
@@ -116,72 +116,95 @@ export function AccountWizardModal({
   }, [isOpen, fetchAdministratorValueId]);
 
   useEffect(() => {
+    refreshTranslations();
+  }, [refreshTranslations]);
+
+  useEffect(() => {
     if (administratorValueId != null && (userForm.user_type === -1 || userForm.user_type == null)) {
       setUserForm((prev) => ({ ...prev, user_type: administratorValueId }));
     }
   }, [administratorValueId]);
 
+  useEffect(() => {
+    const email = accountForm.email_address?.trim() ?? "";
+    const mobile = accountForm.mobile_phone?.trim() ?? "";
+    setUserForm((prev) => ({
+      ...prev,
+      email_address: email,
+      mobile_phone: mobile,
+    }));
+  }, [accountForm.email_address, accountForm.mobile_phone]);
+
   const validateTab0 = useCallback((): { valid: boolean; firstInvalidFieldId: string | null; message: string } => {
     if (!accountForm.account_name?.trim()) {
-      return { valid: false, firstInvalidFieldId: "account_name", message: "Please enter the account name." };
+      return { valid: false, firstInvalidFieldId: "account_name", message: t("Please enter the account name.") };
     }
     if (!accountForm.mobile_phone?.trim()) {
-      return { valid: false, firstInvalidFieldId: "mobile_phone", message: "Please enter the mobile phone." };
+      return { valid: false, firstInvalidFieldId: "mobile_phone", message: t("Please enter the mobile phone.") };
     }
     if (!accountForm.email_address?.trim()) {
-      return { valid: false, firstInvalidFieldId: "email_address", message: "Please enter the email address." };
+      return { valid: false, firstInvalidFieldId: "email_address", message: t("Please enter the email address.") };
     }
     if (accountForm.status == null || accountForm.status < 1) {
-      return { valid: false, firstInvalidFieldId: "account_status", message: "Please select the status." };
+      return { valid: false, firstInvalidFieldId: "account_status", message: t("Please select the status.") };
     }
     return { valid: true, firstInvalidFieldId: null, message: "" };
-  }, [accountForm.account_name, accountForm.mobile_phone, accountForm.email_address, accountForm.status]);
+  }, [accountForm.account_name, accountForm.mobile_phone, accountForm.email_address, accountForm.status, t]);
 
   const validateTab1 = useCallback((): { valid: boolean; firstInvalidFieldId: string | null; message: string } => {
     if (!serviceOfficeForm.service_office_name?.trim()) {
       return {
         valid: false,
         firstInvalidFieldId: "service_office_name",
-        message: "Please enter the service office name.",
+        message: t("Please enter the service office name."),
       };
     }
     if (serviceOfficeForm.status == null || serviceOfficeForm.status < 1) {
       return {
         valid: false,
         firstInvalidFieldId: "service_office_status",
-        message: "Please select the status.",
+        message: t("Please select the status."),
       };
     }
     return { valid: true, firstInvalidFieldId: null, message: "" };
-  }, [serviceOfficeForm.service_office_name, serviceOfficeForm.status]);
+  }, [serviceOfficeForm.service_office_name, serviceOfficeForm.status, t]);
 
   const validateTab2 = useCallback((): { valid: boolean; firstInvalidFieldId: string | null; message: string } => {
     if (!userForm.user_name?.trim()) {
-      return { valid: false, firstInvalidFieldId: "user_name", message: "Please enter the user name." };
+      return { valid: false, firstInvalidFieldId: "user_name", message: t("Please enter the user name.") };
     }
     const hasUserType =
       (userForm.user_type != null && userForm.user_type !== -1) || (administratorValueId ?? -1) !== -1;
     if (!hasUserType) {
-      return { valid: false, firstInvalidFieldId: "user_type", message: "Please select the user type." };
+      return { valid: false, firstInvalidFieldId: "user_type", message: t("Please select the user type.") };
     }
     if (userForm.user_professional_grade == null || userForm.user_professional_grade === undefined) {
       return {
         valid: false,
         firstInvalidFieldId: "user_professional_grade",
-        message: "Please select the user professional grade.",
+        message: t("Please select the user professional grade."),
       };
     }
     if (!userForm.mobile_phone?.trim()) {
-      return { valid: false, firstInvalidFieldId: "mobile_phone", message: "Please enter the mobile phone." };
+      return { valid: false, firstInvalidFieldId: "mobile_phone", message: t("Please enter the mobile phone.") };
     }
     if (!userForm.email_address?.trim()) {
-      return { valid: false, firstInvalidFieldId: "email_address", message: "Please enter the email address." };
+      return { valid: false, firstInvalidFieldId: "email_address", message: t("Please enter the email address.") };
     }
     if (userForm.status == null || userForm.status < 1) {
-      return { valid: false, firstInvalidFieldId: "user_status", message: "Please select the status." };
+      return { valid: false, firstInvalidFieldId: "user_status", message: t("Please select the status.") };
     }
     return { valid: true, firstInvalidFieldId: null, message: "" };
-  }, [userForm.user_name, userForm.user_type, userForm.user_professional_grade, userForm.mobile_phone, userForm.email_address, userForm.status, administratorValueId]);
+  }, [
+    userForm.user_name,
+    userForm.user_type,
+    userForm.user_professional_grade,
+    userForm.mobile_phone,
+    userForm.email_address,
+    userForm.status,
+    administratorValueId,
+    t,
+  ]);
 
   const isAccountValid =
     !!accountForm.account_name?.trim() &&
@@ -264,13 +287,13 @@ export function AccountWizardModal({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const errMsg = data.error || "Failed to send verification code";
+        const errMsg = data.error || t("Failed to send verification code");
         setVerifySendError(errMsg);
         return { ok: false, error: errMsg };
       }
       return { ok: true };
     } catch {
-      const errMsg = "Failed to send verification code";
+      const errMsg = t("Failed to send verification code");
       setVerifySendError(errMsg);
       return { ok: false, error: errMsg };
     } finally {
@@ -281,7 +304,7 @@ export function AccountWizardModal({
   const performSave = async () => {
     const email = accountForm.email_address?.trim() ?? "";
     if (!email) {
-      onNotify("Email address is required to verify account changes.", "error");
+      onNotify(t("Email address is required to verify account changes."), "error");
       return;
     }
     const result = await sendVerificationCode(email);
@@ -290,7 +313,7 @@ export function AccountWizardModal({
       setVerifyVerifyError(null);
       setVerifyModalOpen(true);
     } else {
-      onNotify(result.error || "Failed to send verification code", "error");
+      onNotify(result.error || t("Failed to send verification code"), "error");
     }
   };
 
@@ -304,7 +327,7 @@ export function AccountWizardModal({
       });
       if (!accountRes.ok) {
         const data = await accountRes.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to create account");
+        throw new Error(data.error || t("Failed to create account"));
       }
       const account = await accountRes.json();
 
@@ -334,15 +357,18 @@ export function AccountWizardModal({
       });
       if (!userRes.ok) {
         const data = await userRes.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to create user");
+        throw new Error(data.error || t("Failed to create user"));
       }
 
-      onNotify(`Account "${account.account_name}" created with service office and administrator`, "create");
+      onNotify(
+        `${t("Account")} "${account.account_name}" ${t("created with service office and administrator")}`,
+        "create"
+      );
       resetWizard();
       onClose();
       onSuccess();
     } catch (err) {
-      onNotify(err instanceof Error ? err.message : "Operation failed", "error");
+      onNotify(err instanceof Error ? err.message : t("Operation failed"), "error");
     } finally {
       setIsSaving(false);
     }
@@ -359,7 +385,7 @@ export function AccountWizardModal({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setVerifyVerifyError(data.error || "Invalid or expired code");
+        setVerifyVerifyError(data.error || t("Invalid or expired code"));
         return;
       }
       await executeWizardSave();

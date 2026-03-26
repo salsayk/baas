@@ -31,7 +31,8 @@ export interface CreateContractInput {
   contract_description?: string | null;
   service_office_id: number;
   customer_id: number;
-  contract_type: number;
+  /** null = not chosen yet in the UI; 0 can be a valid lookup value_id */
+  contract_type: number | null;
   status?: ContractStatus;
   contract_start_date: string;
   contract_optional_end_date?: string | null;

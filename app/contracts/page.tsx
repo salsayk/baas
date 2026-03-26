@@ -62,14 +62,14 @@ function getDefaultForm(serviceOfficeId: number): CreateContractInput & { status
     contract_description: null,
     service_office_id: serviceOfficeId,
     customer_id: 0,
-    contract_type: 0,
+    contract_type: null,
     status: 1,
     contract_start_date: today,
     contract_optional_end_date: null,
     contract_amount_value: null,
     contract_currency: "ILS",
     pp_proforma_recurrence: 0,
-    pp_proforma_occasion: "",
+    pp_proforma_occasion: "None",
     pp_initial_payment_reached_indicator: 0,
     pp_initial_amount_value: 0,
     pp_upper_cap_reached_indicator: 0,
@@ -262,32 +262,12 @@ function ContractsContent() {
   const resetModal = () => {
     setIsModalOpen(false);
     setEditingContract(null);
-    const base = getDefaultForm(selectedServiceOfficeId === "" ? 0 : selectedServiceOfficeId);
-    const firstRecurrence = ppProformaRecurrences[0];
-    if (firstRecurrence?.value_name.toLowerCase() === "none") {
-      setForm({
-        ...base,
-        pp_proforma_recurrence: Number(firstRecurrence.value_id),
-        pp_proforma_occasion: firstRecurrence.value_name,
-      });
-    } else {
-      setForm(base);
-    }
+    setForm(getDefaultForm(selectedServiceOfficeId === "" ? 0 : selectedServiceOfficeId));
   };
 
   const openCreateModal = () => {
     setEditingContract(null);
-    const base = getDefaultForm(selectedServiceOfficeId === "" ? 0 : selectedServiceOfficeId);
-    const firstRecurrence = ppProformaRecurrences[0];
-    if (firstRecurrence?.value_name.toLowerCase() === "none") {
-      setForm({
-        ...base,
-        pp_proforma_recurrence: Number(firstRecurrence.value_id),
-        pp_proforma_occasion: firstRecurrence.value_name,
-      });
-    } else {
-      setForm(base);
-    }
+    setForm(getDefaultForm(selectedServiceOfficeId === "" ? 0 : selectedServiceOfficeId));
     setIsModalOpen(true);
   };
 
@@ -309,6 +289,7 @@ function ContractsContent() {
 
   const handleSave = async () => {
     if (!form.contract_name?.trim() || !form.service_office_id || !form.customer_id) return;
+    if (form.contract_type === null || form.contract_type === undefined) return;
     setIsSaving(true);
     try {
       if (editingContract) {
@@ -367,7 +348,7 @@ function ContractsContent() {
       }
       resetModal();
     } catch (err) {
-      notifyError(err instanceof Error ? err.message : "Operation failed");
+      notifyError(err instanceof Error ? t(err.message) : t("Operation failed"));
     } finally {
       setIsSaving(false);
     }
@@ -385,7 +366,7 @@ function ContractsContent() {
       setDeleteConfirm(null);
       notifyDelete(`"${contract?.contract_name ?? "Contract"}" deleted`);
     } catch (err) {
-      notifyError(err instanceof Error ? err.message : "Delete failed");
+      notifyError(err instanceof Error ? t(err.message) : t("Delete failed"));
     }
   };
 
@@ -567,6 +548,7 @@ function ContractsContent() {
       </main>
 
       <ContractModal
+        key={isModalOpen ? `${editingContract?.contract_id ?? "new"}-open` : "closed"}
         isOpen={isModalOpen}
         editingContract={editingContract}
         form={form}

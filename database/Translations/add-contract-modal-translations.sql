@@ -1,5 +1,8 @@
 -- Add/update Contract modal translations with user-provided Hebrew
 -- Run: node database/run-sql.mjs database/Translations/add-contract-modal-translations.sql
+--
+-- New strings after this file has been applied once: add a NEW .sql file under database/Translations/
+-- (do not append here). Example: add-contract-modal-translations-wizard-validation.sql
 
 WITH screen AS (
   SELECT id FROM languages_screens WHERE screen_name = 'contracts'
