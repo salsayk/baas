@@ -342,9 +342,20 @@ function ContractsContent() {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || "Failed to create contract");
         }
-        const created = await res.json();
-        setContracts((prev) => [created, ...prev]);
+        const created = (await res.json()) as Contract;
+        const createdId = Number(created.contract_id);
+        const createdContract: Contract = { ...created, contract_id: createdId };
+        setContracts((prev) => [createdContract, ...prev]);
         notifyCreate(`"${created.contract_name}" created`);
+
+        // For type 2, first persist the contract to get contract_id, then require
+        // at least one contract user fee before final save/update is allowed.
+        if (Number(form.contract_type) === 2) {
+          setEditingContract(createdContract);
+          setForm(contractToFormValues(createdContract));
+          await fetchContracts();
+          return;
+        }
       }
       resetModal();
     } catch (err) {

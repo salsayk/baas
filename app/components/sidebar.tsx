@@ -44,6 +44,7 @@ const navItems: NavItem[] = [
   { name: "Service Office Users", icon: "users", href: "/service-office-users" },
   { name: "Projects", icon: "award", href: "/projects" },
   { name: "Contracts", icon: "file-text", href: "/contracts" },
+  { name: "User contract fee", icon: "credit-card", href: "/user-contract-fee" },
   { name: "System Lookups", icon: "list", href: "/system-lookups" },
   { name: "Languages", icon: "globe", href: "/languages" },
   { name: "Language Labels", icon: "file-text", href: "/language-labels" },

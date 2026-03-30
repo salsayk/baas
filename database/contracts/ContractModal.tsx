@@ -37,6 +37,40 @@ function getDefaultPpProformaOccasionForRecurrence(
   return "";
 }
 
+function normalizeDigits(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+function toDdMmMask(value: string): string {
+  const digits = normalizeDigits(value).slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+}
+
+function isValidDayMonth(value: string): boolean {
+  const parts = value.split("/");
+  if (parts.length !== 2) return false;
+  const day = Number(parts[0]);
+  const month = Number(parts[1]);
+  if (!Number.isInteger(day) || !Number.isInteger(month)) return false;
+  if (month < 1 || month > 12) return false;
+  const maxDaysByMonth: Record<number, number> = {
+    1: 31,
+    2: 29,
+    3: 31,
+    4: 30,
+    5: 31,
+    6: 30,
+    7: 31,
+    8: 31,
+    9: 30,
+    10: 31,
+    11: 30,
+    12: 31,
+  };
+  return day >= 1 && day <= maxDaysByMonth[month];
+}
+
 interface LookupValue {
   value_id: number;
   value_name: string;
@@ -81,6 +115,10 @@ export function ContractModal({
   t,
 }: ContractModalProps) {
   const [activeTab, setActiveTab] = useState<"details" | "pp">("details");
+  const [contractUserFeeCount, setContractUserFeeCount] = useState(0);
+  const [isContractUserFeeLoading, setIsContractUserFeeLoading] = useState(false);
+  const [contractUserFeeLastCheckedAt, setContractUserFeeLastCheckedAt] = useState<Date | null>(null);
+  const [isContractUserFeeModalOpen, setIsContractUserFeeModalOpen] = useState(false);
   const fieldRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | HTMLButtonElement | null>>({});
 
   const PP_REQUIRED_CONTRACT_TYPES = [2, 3] as const;
@@ -95,6 +133,9 @@ export function ContractModal({
   const amountDisabled = hasValidContractType && CONTRACT_TYPES_AMOUNT_DISABLED.includes(contractTypeNum);
   const shouldShowPpTab = hasValidContractType && PP_REQUIRED_CONTRACT_TYPES.includes(contractTypeNum as 2 | 3);
   const showPpRecurrenceCapBlock = shouldShowPpTab && contractTypeNum === PP_HOURLY_CONTRACT_TYPE;
+  const currentContractId = editingContract?.contract_id ? Number(editingContract.contract_id) : 0;
+  const requiresContractUserFee = shouldShowPpTab && contractTypeNum === PP_HOURLY_CONTRACT_TYPE && currentContractId > 0;
+  const hasRequiredContractUserFee = !requiresContractUserFee || contractUserFeeCount > 0;
 
   const contractAmountTooltipKey = useMemo(
     () => (hasValidContractType ? getContractAmountTooltipKey(contractTypeNum) : null),
@@ -110,6 +151,10 @@ export function ContractModal({
   const ppRecurrenceOptionsWhenPpRequired = useMemo(
     () => ppProformaRecurrences.filter((r) => Number(r.value_id) !== 0),
     [ppProformaRecurrences]
+  );
+  const weekDays = useMemo(
+    () => ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day) => t(day)),
+    [t]
   );
 
   // If PP tab applies but recurrence is still 0, coerce to weekly (value_id 1) before paint.
@@ -205,7 +250,69 @@ export function ContractModal({
     form.pp_initial_amount_value != null &&
     form.pp_upper_cap_reached_indicator != null &&
     form.pp_upper_cap_amount_value != null &&
-    isPpRecurrenceCapsValid;
+    isPpRecurrenceCapsValid &&
+    hasRequiredContractUserFee;
+
+  const fetchContractUserFeeCount = useCallback(async () => {
+    if (!requiresContractUserFee) {
+      setContractUserFeeCount(0);
+      setIsContractUserFeeLoading(false);
+      return;
+    }
+    setIsContractUserFeeLoading(true);
+    try {
+      const res = await fetch(`/api/contract-user-fee?contract_id=${currentContractId}&_ts=${Date.now()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error("Failed to fetch user contract fees");
+      const data = await res.json();
+      setContractUserFeeCount(Array.isArray(data) ? data.length : 0);
+      setContractUserFeeLastCheckedAt(new Date());
+    } catch {
+      setContractUserFeeCount(0);
+      setContractUserFeeLastCheckedAt(new Date());
+    } finally {
+      setIsContractUserFeeLoading(false);
+    }
+  }, [currentContractId, requiresContractUserFee]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!requiresContractUserFee) {
+      setContractUserFeeCount(0);
+      setIsContractUserFeeLoading(false);
+      return;
+    }
+    fetchContractUserFeeCount();
+  }, [fetchContractUserFeeCount, isOpen, requiresContractUserFee]);
+
+  useEffect(() => {
+    if (!isOpen || !requiresContractUserFee) return;
+    const onFocus = () => {
+      fetchContractUserFeeCount();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [fetchContractUserFeeCount, isOpen, requiresContractUserFee]);
+
+  const contractUserFeeScreenUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("embed", "1");
+    if (serviceOfficeId > 0) params.set("service_office_id", String(serviceOfficeId));
+    if (form.customer_id && form.customer_id > 0) params.set("customer_id", String(form.customer_id));
+    if (currentContractId > 0) params.set("contract_id", String(currentContractId));
+    const suffix = params.toString();
+    return suffix ? `/user-contract-fee?${suffix}` : "/user-contract-fee";
+  }, [currentContractId, form.customer_id, serviceOfficeId]);
+
+  const openContractUserFeeScreen = useCallback(() => {
+    setIsContractUserFeeModalOpen(true);
+  }, []);
+
+  const closeContractUserFeeModal = useCallback(() => {
+    setIsContractUserFeeModalOpen(false);
+    fetchContractUserFeeCount();
+  }, [fetchContractUserFeeCount]);
 
   const validateDetailsAndFocus = useCallback((): boolean => {
     if (!form.contract_name?.trim()) {
@@ -287,6 +394,24 @@ export function ContractModal({
       setTimeout(() => fieldRefs.current.pp_proforma_occasion?.focus(), 0);
       return false;
     }
+    const recurrenceId = Number(form.pp_proforma_recurrence);
+    const occasion = (form.pp_proforma_occasion ?? "").trim();
+    if (recurrenceId === 2 || recurrenceId === 3) {
+      const numeric = Number(occasion);
+      const max = recurrenceId === 2 ? 28 : 92;
+      if (!Number.isInteger(numeric) || numeric < 1 || numeric > max) {
+        onValidationError("pp_proforma_occasion", t("PP Proforma occasion is required"));
+        setActiveTab("pp");
+        setTimeout(() => fieldRefs.current.pp_proforma_occasion?.focus(), 0);
+        return false;
+      }
+    }
+    if (recurrenceId === 4 && !isValidDayMonth(occasion)) {
+      onValidationError("pp_proforma_occasion", t("PP Proforma occasion is required"));
+      setActiveTab("pp");
+      setTimeout(() => fieldRefs.current.pp_proforma_occasion?.focus(), 0);
+      return false;
+    }
     if (form.pp_initial_payment_reached_indicator == null || form.pp_initial_payment_reached_indicator === undefined) {
       onValidationError("pp_initial_payment_reached_indicator", t("PP Initial payment reached indicator is required"));
       setActiveTab("pp");
@@ -358,6 +483,13 @@ export function ContractModal({
     if (!activeTab) return;
     if (!validateDetailsAndFocus()) return;
     if (activeTab === "pp" && !validatePpAndFocus()) return;
+    if (requiresContractUserFee && !hasRequiredContractUserFee) {
+      onValidationError(
+        "contract_user_fee",
+        t("At least one Contract user fee record is required before saving this contract")
+      );
+      return;
+    }
 
     onSave();
   };
@@ -651,6 +783,7 @@ export function ContractModal({
           {activeTab === "pp" && shouldShowPpTab && (() => {
             const selectedRecurrence = ppProformaRecurrences.find((r) => Number(r.value_id) === form.pp_proforma_recurrence);
             const isOccasionDisabled = !!selectedRecurrence && selectedRecurrence.value_name.toLowerCase() === "none";
+            const selectedRecurrenceId = Number(form.pp_proforma_recurrence);
             return (
           <div data-tab="pp" className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:items-stretch">
@@ -719,18 +852,104 @@ export function ContractModal({
                   </span>
                 </label>
                 <div className="mt-auto w-full">
-                  <input
-                    ref={(el) => { fieldRefs.current.pp_proforma_occasion = el; }}
-                    id="pp_proforma_occasion"
-                    type="text"
-                    maxLength={20}
-                    value={form.pp_proforma_occasion ?? ""}
-                    onChange={(e) => onChange({ pp_proforma_occasion: e.target.value })}
-                    className={`w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 ${isOccasionDisabled ? "bg-slate-100 dark:bg-slate-800 cursor-not-allowed" : ""}`}
-                    disabled={isSaving || isOccasionDisabled}
-                  />
+                  {selectedRecurrenceId === 1 ? (
+                    <select
+                      ref={(el) => { fieldRefs.current.pp_proforma_occasion = el ?? null; }}
+                      id="pp_proforma_occasion"
+                      value={form.pp_proforma_occasion ?? weekDays[0]}
+                      onChange={(e) => onChange({ pp_proforma_occasion: e.target.value })}
+                      className={`w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 ${isOccasionDisabled ? "bg-slate-100 dark:bg-slate-800 cursor-not-allowed" : ""}`}
+                      disabled={isSaving || isOccasionDisabled}
+                    >
+                      {weekDays.map((day) => (
+                        <option key={day} value={day}>
+                          {day}
+                        </option>
+                      ))}
+                    </select>
+                  ) : selectedRecurrenceId === 2 || selectedRecurrenceId === 3 ? (
+                    <input
+                      ref={(el) => { fieldRefs.current.pp_proforma_occasion = el; }}
+                      id="pp_proforma_occasion"
+                      type="number"
+                      min={1}
+                      max={selectedRecurrenceId === 2 ? 28 : 92}
+                      step="1"
+                      value={form.pp_proforma_occasion ?? "1"}
+                      onChange={(e) => onChange({ pp_proforma_occasion: e.target.value })}
+                      onBlur={(e) => {
+                        const raw = Number(e.target.value);
+                        const max = selectedRecurrenceId === 2 ? 28 : 92;
+                        const clamped = Number.isFinite(raw) ? Math.min(Math.max(Math.trunc(raw), 1), max) : 1;
+                        onChange({ pp_proforma_occasion: String(clamped) });
+                      }}
+                      className={`w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 ${isOccasionDisabled ? "bg-slate-100 dark:bg-slate-800 cursor-not-allowed" : ""}`}
+                      disabled={isSaving || isOccasionDisabled}
+                    />
+                  ) : selectedRecurrenceId === 4 ? (
+                    <input
+                      ref={(el) => { fieldRefs.current.pp_proforma_occasion = el; }}
+                      id="pp_proforma_occasion"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="dd/mm"
+                      maxLength={5}
+                      value={toDdMmMask(form.pp_proforma_occasion ?? "31/12")}
+                      onChange={(e) => onChange({ pp_proforma_occasion: toDdMmMask(e.target.value) })}
+                      onBlur={(e) => {
+                        const masked = toDdMmMask(e.target.value);
+                        onChange({ pp_proforma_occasion: isValidDayMonth(masked) ? masked : "31/12" });
+                      }}
+                      className={`w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 ${isOccasionDisabled ? "bg-slate-100 dark:bg-slate-800 cursor-not-allowed" : ""}`}
+                      disabled={isSaving || isOccasionDisabled}
+                    />
+                  ) : (
+                    <input
+                      ref={(el) => { fieldRefs.current.pp_proforma_occasion = el; }}
+                      id="pp_proforma_occasion"
+                      type="text"
+                      maxLength={20}
+                      value={form.pp_proforma_occasion ?? ""}
+                      onChange={(e) => onChange({ pp_proforma_occasion: e.target.value })}
+                      className={`w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 ${isOccasionDisabled ? "bg-slate-100 dark:bg-slate-800 cursor-not-allowed" : ""}`}
+                      disabled={isSaving || isOccasionDisabled}
+                    />
+                  )}
                 </div>
               </div>
+
+              {contractTypeNum === PP_HOURLY_CONTRACT_TYPE && (
+                <div className="sm:col-span-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={openContractUserFeeScreen}
+                      className="px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
+                      disabled={isSaving}
+                    >
+                      {t("Configure user fee")}
+                    </button>
+                    <p
+                      className={`text-sm ${
+                        isContractUserFeeLoading
+                          ? "text-slate-600 dark:text-slate-300"
+                          : hasRequiredContractUserFee
+                            ? "text-emerald-700 dark:text-emerald-300"
+                            : "text-red-600 dark:text-red-400 font-medium"
+                      }`}
+                    >
+                      {isContractUserFeeLoading
+                        ? t("Loading fees...")
+                        : hasRequiredContractUserFee
+                          ? t("Contract user fee is configured")
+                          : t("At least one Contract user fee record is required before saving this contract")}
+                    </p>
+                  </div>
+                  {requiresContractUserFee && !isContractUserFeeLoading && contractUserFeeLastCheckedAt && (
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t("Last checked just now")}</p>
+                  )}
+                </div>
+              )}
 
               <section className="sm:col-span-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50/90 dark:bg-slate-800/45 p-4 sm:p-5 shadow-sm space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:items-stretch">
@@ -984,7 +1203,7 @@ export function ContractModal({
               {shouldShowPpTab && activeTab === "details" ? null : (
                 <button
                   type="submit"
-                  disabled={isSaving || !isDetailsValid || (shouldShowPpTab ? !isPpValid : false)}
+                  disabled={isSaving || isContractUserFeeLoading || !isDetailsValid || (shouldShowPpTab ? !isPpValid : false)}
                   className="px-5 py-3 sm:py-2.5 rounded-xl bg-violet-600 text-white font-medium disabled:opacity-50 hover:bg-violet-700"
                 >
                   {editingContract ? t("Update") : t("Save")}
@@ -994,6 +1213,36 @@ export function ContractModal({
           </div>
         </form>
       </div>
+
+      {isContractUserFeeModalOpen && (
+        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div
+            className="absolute inset-0 backdrop-blur-sm"
+            style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+            onClick={closeContractUserFeeModal}
+            aria-hidden="true"
+          />
+          <div className="relative w-full h-[92vh] sm:h-[88vh] sm:max-w-6xl bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="h-14 px-4 sm:px-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <h3 className="text-sm sm:text-base font-semibold text-slate-900 dark:text-slate-100">
+                {t("Contract user fee")}
+              </h3>
+              <button
+                type="button"
+                onClick={closeContractUserFeeModal}
+                className="px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                {t("Close")}
+              </button>
+            </div>
+            <iframe
+              title={t("Contract user fee")}
+              src={contractUserFeeScreenUrl}
+              className="w-full flex-1 border-0 bg-white"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
