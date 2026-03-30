@@ -7,6 +7,8 @@ import { useTranslations } from "@/app/context/TranslationContext";
 import { useLanguage } from "@/app/context/LanguageContext";
 import { Sidebar, SidebarProvider, MobileMenuButton } from "@/app/components/sidebar";
 import { ContractModal } from "@/database/contracts/ContractModal";
+import { ContractHourlyFeeModal } from "@/database/contract_user_fee/ContractHourlyFeeModal";
+import { ContractMilestonesModal } from "@/database/contract_milestones_data/ContractMilestonesModal";
 import type { Contract, CreateContractInput } from "@/database/contracts/types";
 import type { ServiceOffice } from "@/database/Service_Offices/types";
 
@@ -15,6 +17,9 @@ const STATUS_KEYS: Record<number, string> = {
   2: "Inactive",
   3: "Deleted",
 };
+
+const HOURLY_CONTRACT_TYPE_ID = 2;
+const MILESTONE_CONTRACT_TYPE_IDS = new Set([0, 1]);
 
 function toDateString(val: string | Date | null | undefined): string {
   if (val == null || val === "") return "";
@@ -104,6 +109,8 @@ function ContractsContent() {
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [hourlyFeeContract, setHourlyFeeContract] = useState<Contract | null>(null);
+  const [milestonesContract, setMilestonesContract] = useState<Contract | null>(null);
 
   const { t, refreshTranslations } = useTranslations();
   const { languageId } = useLanguage();
@@ -457,7 +464,7 @@ function ContractsContent() {
                     <th className="px-4 lg:px-6 py-4 text-start text-xs font-semibold text-slate-500 uppercase">
                       {t("Status")}
                     </th>
-                    <th className="sticky right-0 min-w-[100px] px-4 lg:px-6 py-4 text-end text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase bg-slate-50/50 dark:bg-slate-800/50 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.05)]">
+                    <th className="sticky right-0 min-w-[160px] px-4 lg:px-6 py-4 text-end text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase bg-slate-50/50 dark:bg-slate-800/50 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.05)]">
                       {t("Actions")}
                     </th>
                   </tr>
@@ -498,8 +505,60 @@ function ContractsContent() {
                         <td className="px-4 lg:px-6 py-4 text-sm text-slate-700">
                           {t(STATUS_KEYS[contract.status] ?? "Unknown")}
                         </td>
-                        <td className="sticky right-0 min-w-[100px] px-4 lg:px-6 py-4 bg-white dark:bg-slate-900 group-hover:bg-slate-50/50 dark:group-hover:bg-slate-800/50 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.05)]">
+                        <td className="sticky right-0 min-w-[160px] px-4 lg:px-6 py-4 bg-white dark:bg-slate-900 group-hover:bg-slate-50/50 dark:group-hover:bg-slate-800/50 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.05)]">
                           <div className="flex items-center justify-end gap-1">
+                            {Number(contract.contract_type) === HOURLY_CONTRACT_TYPE_ID && (
+                              <button
+                                type="button"
+                                onClick={() => setHourlyFeeContract(contract)}
+                                className="p-2 rounded-lg hover:bg-violet-50 dark:hover:bg-violet-950/30 text-slate-600 dark:text-slate-400 hover:text-violet-700 dark:hover:text-violet-300"
+                                title={t("Configure hourly fee")}
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="18"
+                                  height="18"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <circle cx="12" cy="12" r="3" />
+                                  <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                                </svg>
+                              </button>
+                            )}
+                            {MILESTONE_CONTRACT_TYPE_IDS.has(Number(contract.contract_type)) && (
+                              <button
+                                type="button"
+                                onClick={() => setMilestonesContract(contract)}
+                                className="p-2 rounded-lg hover:bg-violet-50 dark:hover:bg-violet-950/30 text-slate-600 dark:text-slate-400 hover:text-violet-700 dark:hover:text-violet-300"
+                                title={t("Configure Milestones")}
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="18"
+                                  height="18"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M8 6h13" />
+                                  <path d="M8 12h13" />
+                                  <path d="M8 18h13" />
+                                  <path d="M3 6h.01" />
+                                  <path d="M3 12h.01" />
+                                  <path d="M3 18h.01" />
+                                </svg>
+                              </button>
+                            )}
                             <button
                               onClick={() => openCopyModal(contract)}
                               className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
@@ -558,8 +617,28 @@ function ContractsContent() {
         </div>
       </main>
 
+      <ContractHourlyFeeModal
+        isOpen={hourlyFeeContract != null}
+        contract={hourlyFeeContract}
+        onClose={() => setHourlyFeeContract(null)}
+        notifyCreate={notifyCreate}
+        notifyUpdate={notifyUpdate}
+        notifyDelete={notifyDelete}
+        notifyError={notifyError}
+      />
+
+      <ContractMilestonesModal
+        isOpen={milestonesContract != null}
+        contract={milestonesContract}
+        onClose={() => setMilestonesContract(null)}
+        notifyCreate={notifyCreate}
+        notifyUpdate={notifyUpdate}
+        notifyDelete={notifyDelete}
+        notifyError={notifyError}
+      />
+
       <ContractModal
-        key={isModalOpen ? `${editingContract?.contract_id ?? "new"}-open` : "closed"}
+        key={isModalOpen ? "contract-modal-open" : "closed"}
         isOpen={isModalOpen}
         editingContract={editingContract}
         form={form}
@@ -574,6 +653,10 @@ function ContractsContent() {
         onChange={(updates) => setForm((prev) => ({ ...prev, ...updates }))}
         onValidationError={handleValidationError}
         t={t}
+        notifyCreate={notifyCreate}
+        notifyUpdate={notifyUpdate}
+        notifyDelete={notifyDelete}
+        notifyError={notifyError}
       />
 
       <NotificationContainer

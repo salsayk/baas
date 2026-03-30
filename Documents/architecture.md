@@ -129,7 +129,7 @@ Reusable modals and wizards live under `database/` and are used by app pages:
 - **Service offices:** `ServiceOfficeModal`, `AccountServiceOfficesModal`
 - **Customers:** `CustomerModal`, `ServiceOfficeCustomersModal`
 - **Projects:** `ProjectModal`, `CustomerProjectsModal`, `AssignContractsModal`
-- **Contracts:** `ContractModal`
+- **Contracts:** `ContractModal`; hourly (contract type 2) user-fee configuration uses `ContractHourlyFeeModal` (`database/contract_user_fee/ContractHourlyFeeModal.tsx`) from the contract wizard (Configure user fee) and from the contracts grid; milestone configuration for contract types 0/1 uses `ContractMilestonesModal` + `ContractMilestoneModal` (`database/contract_milestones_data/`)
 - **Subcontractors:** `SubcontractorModal`, `ServiceOfficeSubcontractorsModal`
 - **Service office users:** `ServiceOfficeUserModal`, `ServiceOfficeUsersModal`, `AssignCustomersProjectsWizard`
 - **System lookups:** `SystemLookupModal`, `LookupValuesModal`
@@ -163,6 +163,8 @@ Conventions: functional components, TypeScript interfaces, named exports; modals
 | Projects | GET, PATCH, DELETE | `/api/projects/[id]` | |
 | Contracts | GET, POST | `/api/contracts` | By service_office_id, customer_id. |
 | Contracts | PATCH, DELETE | `/api/contracts/[id]` | |
+| Contract milestones | GET, POST | `/api/contract-milestones` | Milestones per contract (`contract_id` required). |
+| Contract milestones | PATCH, DELETE | `/api/contract-milestones/[contract_id]/[milestone_sequential_number]` | Single milestone operations. |
 | Subcontractors | GET, POST | `/api/subcontractors` | By service_office_id. |
 | Subcontractors | GET, PATCH, DELETE | `/api/subcontractors/[id]` | |
 | Service office users | GET, POST | `/api/service-office-users` | By service_office_id. |
@@ -207,6 +209,7 @@ Conventions: functional components, TypeScript interfaces, named exports; modals
 | **subcontractors** | `subcontractor_id`, `service_office_id`, name, contact, `status`. |
 | **projects** | `project_id`, `service_office_id`, `customer_id`, name, scope, `status`. |
 | **contracts** | `contract_id`, `service_office_id`, `customer_id`, name, type, status, dates, amount, currency, payment plan fields. |
+| **contract_milestones_data** | Contract milestones keyed by (`contract_id`, `milestone_sequential_number`), with criteria, due date, amount, percentage (0..100), progress/condition indicators, and related dates/user IDs. |
 | **service_office_users** | `service_office_user_id`, `service_office_id`, `subcontractor_id`, user_name, user_type, professional_grade, contact, `status`, password (optional). |
 | **service_office_users_data_authorization** | `auth_id`, `user_id` (→ service_office_user_id), `authorized_entity_type`, `entity_id`. Types: 2=customer, 3=project, 4=contract, 100=all future customers (entity_id=service_office_id), 101=all future projects per customer (entity_id=customer_id). |
 | **entities_pairs** | `pair_id`, `entities_pair_type`, `parent_entity_id`, `child_entity_id`, `sort_order`. Used e.g. for project–contract links (type 0). |
@@ -251,7 +254,7 @@ components/               # Landing: header, hero, features, etc.
 database/
   accounts/               # db-client, types, create table, modals
   Service_Offices/        # create table, modals, types, countries
-  customer/, project/, contracts/, subcontractors/, service_office_users/
+  customer/, project/, contracts/, contract_milestones_data/, subcontractors/, service_office_users/
   service_office_user_data_authorization/, entities_pairs/
   system_lookups/, system_lookup_values/, screens/, Languages/, Languages_Screens/
   Translations/, api_keys/, email_verification/, users/

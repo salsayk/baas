@@ -3,6 +3,7 @@
 import { useRef, useEffect, useLayoutEffect, useCallback, useState, useMemo } from "react";
 import { CURRENCY_CODES } from "@/database/contracts/currencies";
 import type { CreateContractInput, Contract } from "@/database/contracts/types";
+import { ContractHourlyFeeModal } from "@/database/contract_user_fee/ContractHourlyFeeModal";
 
 const STATUS_KEYS: Record<number, string> = {
   1: "Active",
@@ -96,6 +97,11 @@ interface ContractModalProps {
   onChange: (updates: Partial<CreateContractInput & { status: number }>) => void;
   onValidationError: (fieldId: string, message: string) => void;
   t: (sourceText: string) => string;
+  /** Used by embedded hourly-fee configuration modal; toasts show on the contracts page. */
+  notifyCreate: (message: string) => void;
+  notifyUpdate: (message: string) => void;
+  notifyDelete: (message: string) => void;
+  notifyError: (message: string) => void;
 }
 
 export function ContractModal({
@@ -113,11 +119,14 @@ export function ContractModal({
   onChange,
   onValidationError,
   t,
+  notifyCreate,
+  notifyUpdate,
+  notifyDelete,
+  notifyError,
 }: ContractModalProps) {
   const [activeTab, setActiveTab] = useState<"details" | "pp">("details");
   const [contractUserFeeCount, setContractUserFeeCount] = useState(0);
   const [isContractUserFeeLoading, setIsContractUserFeeLoading] = useState(false);
-  const [contractUserFeeLastCheckedAt, setContractUserFeeLastCheckedAt] = useState<Date | null>(null);
   const [isContractUserFeeModalOpen, setIsContractUserFeeModalOpen] = useState(false);
   const fieldRefs = useRef<Record<string, HTMLInputElement | HTMLSelectElement | HTMLButtonElement | null>>({});
 
@@ -267,10 +276,8 @@ export function ContractModal({
       if (!res.ok) throw new Error("Failed to fetch user contract fees");
       const data = await res.json();
       setContractUserFeeCount(Array.isArray(data) ? data.length : 0);
-      setContractUserFeeLastCheckedAt(new Date());
     } catch {
       setContractUserFeeCount(0);
-      setContractUserFeeLastCheckedAt(new Date());
     } finally {
       setIsContractUserFeeLoading(false);
     }
@@ -295,19 +302,16 @@ export function ContractModal({
     return () => window.removeEventListener("focus", onFocus);
   }, [fetchContractUserFeeCount, isOpen, requiresContractUserFee]);
 
-  const contractUserFeeScreenUrl = useMemo(() => {
-    const params = new URLSearchParams();
-    params.set("embed", "1");
-    if (serviceOfficeId > 0) params.set("service_office_id", String(serviceOfficeId));
-    if (form.customer_id && form.customer_id > 0) params.set("customer_id", String(form.customer_id));
-    if (currentContractId > 0) params.set("contract_id", String(currentContractId));
-    const suffix = params.toString();
-    return suffix ? `/user-contract-fee?${suffix}` : "/user-contract-fee";
-  }, [currentContractId, form.customer_id, serviceOfficeId]);
-
   const openContractUserFeeScreen = useCallback(() => {
+    if (!editingContract || !Number.isFinite(Number(editingContract.contract_id)) || Number(editingContract.contract_id) <= 0) {
+      onValidationError(
+        "contract_user_fee",
+        t("Save the contract first before configuring hourly fees")
+      );
+      return;
+    }
     setIsContractUserFeeModalOpen(true);
-  }, []);
+  }, [editingContract, onValidationError, t]);
 
   const closeContractUserFeeModal = useCallback(() => {
     setIsContractUserFeeModalOpen(false);
@@ -925,29 +929,21 @@ export function ContractModal({
                       type="button"
                       onClick={openContractUserFeeScreen}
                       className="px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
-                      disabled={isSaving}
+                      disabled={isSaving || currentContractId <= 0}
+                      title={
+                        currentContractId <= 0
+                          ? t("Save the contract first before configuring hourly fees")
+                          : t("Configure user fee")
+                      }
                     >
                       {t("Configure user fee")}
                     </button>
-                    <p
-                      className={`text-sm ${
-                        isContractUserFeeLoading
-                          ? "text-slate-600 dark:text-slate-300"
-                          : hasRequiredContractUserFee
-                            ? "text-emerald-700 dark:text-emerald-300"
-                            : "text-red-600 dark:text-red-400 font-medium"
-                      }`}
-                    >
-                      {isContractUserFeeLoading
-                        ? t("Loading fees...")
-                        : hasRequiredContractUserFee
-                          ? t("Contract user fee is configured")
-                          : t("At least one Contract user fee record is required before saving this contract")}
-                    </p>
+                    {requiresContractUserFee && !isContractUserFeeLoading && !hasRequiredContractUserFee ? (
+                      <p className="text-sm text-red-600 dark:text-red-400 font-medium">
+                        {t("At least one Contract user fee record is required before saving this contract")}
+                      </p>
+                    ) : null}
                   </div>
-                  {requiresContractUserFee && !isContractUserFeeLoading && contractUserFeeLastCheckedAt && (
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t("Last checked just now")}</p>
-                  )}
                 </div>
               )}
 
@@ -1214,35 +1210,16 @@ export function ContractModal({
         </form>
       </div>
 
-      {isContractUserFeeModalOpen && (
-        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div
-            className="absolute inset-0 backdrop-blur-sm"
-            style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
-            onClick={closeContractUserFeeModal}
-            aria-hidden="true"
-          />
-          <div className="relative w-full h-[92vh] sm:h-[88vh] sm:max-w-6xl bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-            <div className="h-14 px-4 sm:px-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <h3 className="text-sm sm:text-base font-semibold text-slate-900 dark:text-slate-100">
-                {t("Contract user fee")}
-              </h3>
-              <button
-                type="button"
-                onClick={closeContractUserFeeModal}
-                className="px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                {t("Close")}
-              </button>
-            </div>
-            <iframe
-              title={t("Contract user fee")}
-              src={contractUserFeeScreenUrl}
-              className="w-full flex-1 border-0 bg-white"
-            />
-          </div>
-        </div>
-      )}
+      <ContractHourlyFeeModal
+        isOpen={isContractUserFeeModalOpen}
+        onClose={closeContractUserFeeModal}
+        contract={editingContract}
+        contractNameFallback={form.contract_name?.trim() ?? ""}
+        notifyCreate={notifyCreate}
+        notifyUpdate={notifyUpdate}
+        notifyDelete={notifyDelete}
+        notifyError={notifyError}
+      />
     </div>
   );
 }
