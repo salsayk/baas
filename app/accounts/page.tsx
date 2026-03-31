@@ -56,6 +56,8 @@ function AccountsContent() {
   const [verifyVerifyError, setVerifyVerifyError] = useState<string | null>(null);
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+  /** Until loaded, assume true so verification stays on by default. */
+  const [emailVerificationEnabled, setEmailVerificationEnabled] = useState(true);
 
   const {
     notifications,
@@ -88,6 +90,22 @@ function AccountsContent() {
   useEffect(() => {
     fetchAccounts();
   }, [fetchAccounts]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/app-feature-settings")
+      .then((res) => res.json())
+      .then((data: { EnableEmailVerification?: boolean }) => {
+        if (cancelled) return;
+        if (typeof data.EnableEmailVerification === "boolean") {
+          setEmailVerificationEnabled(data.EnableEmailVerification);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const resetModal = () => {
     setIsModalOpen(false);
@@ -232,7 +250,7 @@ function AccountsContent() {
 
   const handleSave = async () => {
     if (!form.account_name?.trim()) return;
-    if (needEmailVerification()) {
+    if (needEmailVerification() && emailVerificationEnabled) {
       const email = form.email_address?.trim() ?? "";
       if (!email) {
         notifyError("Email address is required to verify account changes.");

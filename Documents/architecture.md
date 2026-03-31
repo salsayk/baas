@@ -34,6 +34,7 @@ The app is multi-tenant at the **account** level: each logged-in user (Google OA
 
 - **Proxy (request boundary):** Next.js 16 uses `proxy.ts` (not `middleware.ts`) for the network boundary in front of the app.
 - **Database config:** Loaded from `database/db-config.json` (PostgreSQL connection; not committed; see `.env.local` for secrets).
+- **App feature settings:** `config/app-feature-settings.json` (committed). `EnableEmailVerification` (default `true`) controls whether `POST /api/account/verify-email/send` actually sends email via SMTP/Resend; when `false`, the verification code is still stored but no email is sent. The UI reads the same flag via `GET /api/app-feature-settings` and skips the verification modal and proceeds with save/create when it is `false`.
 
 ---
 
@@ -183,7 +184,8 @@ Conventions: functional components, TypeScript interfaces, named exports; modals
 | System lookup values | PATCH, DELETE | `/api/system-lookup-values/[id]` | |
 | Translations | GET, POST | `/api/translations` | |
 | Translations | PATCH, DELETE | `/api/translations/[id]` | |
-| Account verify email | POST | `/api/account/verify-email/send`, `verify` | |
+| App feature settings | GET | `/api/app-feature-settings` | Returns `EnableEmailVerification` (and future safe toggles) for client UX. |
+| Account verify email | POST | `/api/account/verify-email/send`, `verify` | Send respects `config/app-feature-settings.json` → `EnableEmailVerification`. |
 | Keys (API keys) | GET, POST | `/api/keys` | |
 | Keys | GET, PATCH, DELETE | `/api/keys/[id]` | |
 | Keys | POST | `/api/keys/validate` | |
@@ -251,6 +253,7 @@ app/
   language-labels/, screens/, playground/, use-cases/, billing/, settings/, protected/
   layout.tsx, page.tsx, globals.css
 components/               # Landing: header, hero, features, etc.
+config/                   # app-feature-settings.json (feature flags / app toggles)
 database/
   accounts/               # db-client, types, create table, modals
   Service_Offices/        # create table, modals, types, countries

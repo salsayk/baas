@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/app/lib/auth";
+import { getAppFeatureSettings } from "@/app/lib/app-feature-settings";
 import { getDbClient } from "@/database/accounts/db-client";
 import { Resend } from "resend";
 import nodemailer from "nodemailer";
@@ -138,6 +139,21 @@ export async function POST(request: Request) {
       );
     } finally {
       await client.end();
+    }
+
+    const { EnableEmailVerification } = getAppFeatureSettings();
+    if (!EnableEmailVerification) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn(
+          "EnableEmailVerification is false; verification code not emailed. Code (dev only):",
+          code
+        );
+      }
+      return NextResponse.json({
+        ok: true,
+        provider: "disabled",
+        message: "Email verification sending is disabled by configuration",
+      });
     }
 
     // Primary: SMTP (e.g. Gmail)

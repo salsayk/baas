@@ -76,6 +76,8 @@ export function AccountWizardModal({
   const [verifyVerifyError, setVerifyVerifyError] = useState<string | null>(null);
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+  /** Until loaded, assume true so verification stays on by default. */
+  const [emailVerificationEnabled, setEmailVerificationEnabled] = useState(true);
 
   const fetchAdministratorValueId = useCallback(async () => {
     try {
@@ -114,6 +116,23 @@ export function AccountWizardModal({
   useEffect(() => {
     if (isOpen) fetchAdministratorValueId();
   }, [isOpen, fetchAdministratorValueId]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    fetch("/api/app-feature-settings")
+      .then((res) => res.json())
+      .then((data: { EnableEmailVerification?: boolean }) => {
+        if (cancelled) return;
+        if (typeof data.EnableEmailVerification === "boolean") {
+          setEmailVerificationEnabled(data.EnableEmailVerification);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     refreshTranslations();
@@ -407,7 +426,11 @@ export function AccountWizardModal({
       });
       return;
     }
-    performSave();
+    if (emailVerificationEnabled) {
+      performSave();
+    } else {
+      void executeWizardSave();
+    }
   };
 
   const handleWizardClose = () => {
