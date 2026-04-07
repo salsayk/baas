@@ -35,7 +35,15 @@ seed(source_text, en_text, he_text) AS (
     ('Failed to fetch milestones', 'Failed to fetch milestones', 'טעינת אבני הדרך נכשלה'),
     ('Failed to update milestone', 'Failed to update milestone', 'עדכון אבן הדרך נכשל'),
     ('Failed to create milestone', 'Failed to create milestone', 'יצירת אבן הדרך נכשלה'),
-    ('Failed to delete milestone', 'Failed to delete milestone', 'מחיקת אבן הדרך נכשלה')
+    ('Failed to delete milestone', 'Failed to delete milestone', 'מחיקת אבן הדרך נכשלה'),
+    ('Drag to reorder', 'Drag to reorder', 'גרור לסידור מחדש'),
+    ('Failed to reorder milestones', 'Failed to reorder milestones', 'סידור מחדש של אבני הדרך נכשל'),
+    ('Total milestone amounts cannot exceed the contract amount.', 'Total milestone amounts cannot exceed the contract amount.', 'סכום אבני הדרך הכולל אינו יכול לעלות על סכום החוזה.'),
+    ('Total milestone percentages cannot exceed 100%.', 'Total milestone percentages cannot exceed 100%.', 'סכום אחוזי אבני הדרך אינו יכול לעלות על 100%.'),
+    ('Amount and percentage stay in sync with the contract total.', 'Amount and percentage stay in sync with the contract total.', 'הסכום והאחוז מתעדכנים בהתאם לסכום החוזה.'),
+    ('Remaining', 'Remaining', 'נותר'),
+    ('Shows how much of the contract amount is still unallocated after all milestones including this one.', 'Shows how much of the contract amount is still unallocated after all milestones including this one.', 'מציג כמה מסכום החוזה עדיין לא מוקצה לאחר כל אבני הדרך, כולל הנוכחית.'),
+    ('Shows how many percentage points are still available across all milestones (maximum 100% in total).', 'Shows how many percentage points are still available across all milestones (maximum 100% in total).', 'מציג כמה נקודות אחוז עדיין פנויות לכל אבני הדרך (סה״כ עד 100%).')
 )
 INSERT INTO languages_screens_translations (screen_id, source_text, language_id, translated_text)
 SELECT s.id, seed.source_text, l.id,

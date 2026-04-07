@@ -101,7 +101,7 @@ The app is multi-tenant at the **account** level: each logged-in user (Google OA
 - **App Router:** `app/` – `layout.tsx`, `page.tsx`, and route segments under `app/`.
 - **Pages (main screens):**  
   `accounts`, `service-offices`, `customers`, `subcontractors`, `service-office-users`, `projects`, `contracts`,  
-  `system-lookups`, `languages`, `language-labels`, `screens`, `dashboards`, `playground`, `use-cases`, `billing`, `settings`, `protected`.
+  `subscriptions-offers`, `system-lookups`, `languages`, `language-labels`, `screens`, `dashboards`, `playground`, `use-cases`, `billing`, `settings`, `protected`.
 - **Auth:** `app/auth/auth-error`, sign-in via NextAuth on `/`.
 - **Layout:** Root layout wraps with `AuthProvider`, `ThemeProvider`, `LanguageProvider`, `TranslationProvider`, `AutoTranslate`. Authenticated areas use a layout that includes the **sidebar** (navigation).
 
@@ -130,12 +130,13 @@ Reusable modals and wizards live under `database/` and are used by app pages:
 - **Service offices:** `ServiceOfficeModal`, `AccountServiceOfficesModal`
 - **Customers:** `CustomerModal`, `ServiceOfficeCustomersModal`
 - **Projects:** `ProjectModal`, `CustomerProjectsModal`, `AssignContractsModal`
-- **Contracts:** `ContractModal`; hourly (contract type 2) user-fee configuration uses `ContractHourlyFeeModal` (`database/contract_user_fee/ContractHourlyFeeModal.tsx`) from the contract wizard (Configure user fee) and from the contracts grid; milestone configuration for contract types 0/1 uses `ContractMilestonesModal` + `ContractMilestoneModal` (`database/contract_milestones_data/`)
+- **Contracts:** `ContractModal`; the contracts grid (`app/contracts/page.tsx`) shows **contract type** as a translated label from the Contract Type system lookup (not the raw stored id). **Hourly create:** the modal closes after the first successful save (no second save to obtain `contract_id` for a separate fee button). Active + hourly still requires at least one `contract_user_fee` row when **updating** an existing contract (`PATCH /api/contracts/[id]`). Hourly (contract type 2) user-fee configuration uses `ContractHourlyFeeModal` (`database/contract_user_fee/ContractHourlyFeeModal.tsx`) from the contract wizard (Configure user fee) and from the contracts grid; milestone configuration for contract types 0/1 uses `ContractMilestonesModal` + `ContractMilestoneModal` (`database/contract_milestones_data/`) with row drag-and-drop reorder (`POST /api/contract-milestones/reorder`). Milestone add/edit enforces total amount vs `contract_amount_value` and total percentage ≤ 100% (`app/lib/contract-milestones-aggregate-validation.ts`).
 - **Subcontractors:** `SubcontractorModal`, `ServiceOfficeSubcontractorsModal`
 - **Service office users:** `ServiceOfficeUserModal`, `ServiceOfficeUsersModal`, `AssignCustomersProjectsWizard`
 - **System lookups:** `SystemLookupModal`, `LookupValuesModal`
 - **Screens:** `ScreenModal`, `ScreenTranslationsModal`, `ScreenPermissionsModal`
 - **Languages:** `LanguageModal`
+- **Subscriptions offers:** `SubscriptionOfferModal` (`database/subscriptions_offers/SubscriptionOfferModal.tsx`); grid and CRUD on `app/subscriptions-offers/page.tsx`. Offer **type** uses `system_lookup_values` for `lookup_table_id = 8` (with `language_id` for labels). On save, `subscription_offer_name` is set to the **translated** `value_name` for the selected type. **Currency** options match contracts (`database/contracts/currencies.ts`). If **type** `value_id` is **0**, monthly price is forced to **0** and the price field is disabled (`SUBSCRIPTION_OFFER_TYPE_ZERO_PRICE`). **At most one Active row per `subscription_offer_type`** (partial unique index `uq_subscriptions_offers_active_offer_type` where `status = 1`); multiple Inactive/Deleted rows per type allowed. API error text matches `database/subscriptions_offers/active-type-conflict-message.ts` for `t()` translation. `updated_datetime` is NULL until the first UPDATE (trigger sets it on update only).
 
 Conventions: functional components, TypeScript interfaces, named exports; modals receive `isOpen`, `onClose`, and entity-specific props.
 
@@ -148,6 +149,7 @@ Conventions: functional components, TypeScript interfaces, named exports; modals
 - **Auth:** Each route that needs it calls `getAuthenticatedUser()` from `app/lib/auth.ts`; returns 401 if not logged in.
 - **Access control:** Queries filter by `user_id` via `accounts` (e.g. join `service_offices` → `accounts` → `accounts.user_id = $1`).
 - **DB:** `getDbClient()` from `database/accounts/db-client.ts` (reads `database/db-config.json`). Each route typically `connect()` → query → `end()` in a try/finally.
+- **Milestone totals:** `app/lib/contract-milestones-aggregate-validation.ts` — shared rules for sum of milestone amounts vs contract amount and sum of percentages ≤ 100; used by milestone POST/PATCH routes and the add/edit milestone modal.
 
 ### 6.2 Main API Endpoints
 
@@ -164,14 +166,17 @@ Conventions: functional components, TypeScript interfaces, named exports; modals
 | Projects | GET, PATCH, DELETE | `/api/projects/[id]` | |
 | Contracts | GET, POST | `/api/contracts` | By service_office_id, customer_id. |
 | Contracts | PATCH, DELETE | `/api/contracts/[id]` | |
-| Contract milestones | GET, POST | `/api/contract-milestones` | Milestones per contract (`contract_id` required). |
-| Contract milestones | PATCH, DELETE | `/api/contract-milestones/[contract_id]/[milestone_sequential_number]` | Single milestone operations. |
+| Contract milestones | GET, POST | `/api/contract-milestones` | Milestones per contract (`contract_id` required); list ordered by `milestone_sequential_number`. **POST** rejects when sum of milestone amounts would exceed `contracts.contract_amount_value` (if set) or sum of percentages would exceed 100%. |
+| Contract milestones | POST | `/api/contract-milestones/reorder` | Body: `contract_id`, `ordered_sequential_numbers` (permutation of existing seq values). Remaps `milestone_sequential_number` to 1…n in that order (transaction + offset strategy to avoid PK clashes). Returns `{ milestones }`. |
+| Contract milestones | PATCH, DELETE | `/api/contract-milestones/[contract_id]/[milestone_sequential_number]` | Single milestone updates (same aggregate rules as POST when amount/percentage change); **DELETE** also compacts remaining rows to sequential 1…n and returns `{ success, milestones }`. |
 | Subcontractors | GET, POST | `/api/subcontractors` | By service_office_id. |
 | Subcontractors | GET, PATCH, DELETE | `/api/subcontractors/[id]` | |
 | Service office users | GET, POST | `/api/service-office-users` | By service_office_id. |
 | Service office users | GET, PATCH, DELETE | `/api/service-office-users/[id]` | |
 | User data authorization | GET, POST | `/api/user-data-authorization` | Assign customers/projects/contracts to service office user. |
 | Entity pairs | GET, POST | `/api/entities-pairs` | Project–contract links (e.g. type 0). |
+| Subscriptions offers | GET, POST | `/api/subscriptions-offers` | Authenticated; list / create rows in `subscriptions_offers`. |
+| Subscriptions offers | PATCH, DELETE | `/api/subscriptions-offers/[id]` | Update / delete. |
 | Languages | GET, POST | `/api/languages` | |
 | Languages | PATCH, DELETE | `/api/languages/[id]` | |
 | UI screens | GET, POST | `/api/ui-screens` | |
@@ -211,7 +216,8 @@ Conventions: functional components, TypeScript interfaces, named exports; modals
 | **subcontractors** | `subcontractor_id`, `service_office_id`, name, contact, `status`. |
 | **projects** | `project_id`, `service_office_id`, `customer_id`, name, scope, `status`. |
 | **contracts** | `contract_id`, `service_office_id`, `customer_id`, name, type, status, dates, amount, currency, payment plan fields. |
-| **contract_milestones_data** | Contract milestones keyed by (`contract_id`, `milestone_sequential_number`), with criteria, due date, amount, percentage (0..100), progress/condition indicators, and related dates/user IDs. |
+| **contract_milestones_data** | Contract milestones keyed by (`contract_id`, `milestone_sequential_number`), with criteria, due date, amount, percentage (0..100), progress/condition indicators, and related dates/user IDs. Display/API order is by `milestone_sequential_number`. Reorder and post-delete compaction remap sequences to 1…n via `app/lib/contract-milestones-sequencing.ts` (temporary offset updates). |
+| **contract_milestones_data_for_success** | “Success” milestones per contract: same PK pattern (`contract_id`, `milestone_sequential_number`); `milestone_criteria` required; `milestone_type` 0=Fixed / 1=Percentage; `milestone_percentage_reference_figure_description` numeric, NULL for Fixed (0), required for Percentage (1); optional `min_payment_amount` / `max_payment_amount`; progress/met fields aligned with `contract_milestones_data`. Scripts under `database/contract_milestones_data_for_success/`. |
 | **service_office_users** | `service_office_user_id`, `service_office_id`, `subcontractor_id`, user_name, user_type, professional_grade, contact, `status`, password (optional). |
 | **service_office_users_data_authorization** | `auth_id`, `user_id` (→ service_office_user_id), `authorized_entity_type`, `entity_id`. Types: 2=customer, 3=project, 4=contract, 100=all future customers (entity_id=service_office_id), 101=all future projects per customer (entity_id=customer_id). |
 | **entities_pairs** | `pair_id`, `entities_pair_type`, `parent_entity_id`, `child_entity_id`, `sort_order`. Used e.g. for project–contract links (type 0). |
@@ -224,6 +230,7 @@ Conventions: functional components, TypeScript interfaces, named exports; modals
 | **system_lookup_translations** / **system_lookup_value_translations** | Localized labels. |
 | **api_keys** | API keys (if used). |
 | **email_verification** | Email verification codes (e.g. for account flows). |
+| **subscriptions_offers** | `subscription_offer_id`, `administrator_restricted_offer` (0/1), `subscription_offer_name` (100 chars), `subscription_offer_type` (`value_id` for app-managed lookup **8**), `subscription_offer_monthly_price`, `offer_currency` (ISO 4217, 3 chars), `status` (1=Active, 2=Inactive, 3=Deleted), `creation_datetime`, `updated_datetime` (NULL until first UPDATE; trigger sets on update). **Partial unique** on `subscription_offer_type` where `status = 1` (`uq_subscriptions_offers_active_offer_type`) — only one Active row per type. Scripts: `create-subscriptions-offers-table.sql`, `add-unique-subscription-offer-type.sql`, `migrate-subscriptions-offers-partial-unique-active.sql` (replace full unique on type), `migrate-remove-lookup-table-id-and-updated-default.sql` (older schemas). |
 
 Create scripts live under `database/<entity>/create-*.sql` and are run manually or via `database/run-sql.mjs`.
 
@@ -249,7 +256,7 @@ app/
   components/             # Sidebar, ThemeSelector, AutoTranslate, notifications
   context/                # Auth, Theme, Language, Translation
   dashboards/, accounts/, service-offices/, customers/, subcontractors/,
-  service-office-users/, projects/, contracts/, system-lookups/, languages/,
+  service-office-users/, projects/, contracts/, subscriptions_offers/, system-lookups/, languages/,
   language-labels/, screens/, playground/, use-cases/, billing/, settings/, protected/
   layout.tsx, page.tsx, globals.css
 components/               # Landing: header, hero, features, etc.
@@ -257,10 +264,10 @@ config/                   # app-feature-settings.json (feature flags / app toggl
 database/
   accounts/               # db-client, types, create table, modals
   Service_Offices/        # create table, modals, types, countries
-  customer/, project/, contracts/, contract_milestones_data/, subcontractors/, service_office_users/
+  customer/, project/, contracts/, contract_milestones_data/, contract_milestones_data_for_success/, subcontractors/, service_office_users/
   service_office_user_data_authorization/, entities_pairs/
   system_lookups/, system_lookup_values/, screens/, Languages/, Languages_Screens/
-  Translations/, api_keys/, email_verification/, users/
+  Translations/, api_keys/, email_verification/, subscriptions_offers/, users/
   run-sql.mjs, verify-table.mjs, db-config.json
 Documents/
   architecture.md         # This file

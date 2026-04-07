@@ -19,6 +19,9 @@ const STATUS_KEYS: Record<number, string> = {
 };
 
 const HOURLY_CONTRACT_TYPE_ID = 2;
+function normalizeLookupName(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
 const MILESTONE_CONTRACT_TYPE_IDS = new Set([0, 1]);
 
 function toDateString(val: string | Date | null | undefined): string {
@@ -111,6 +114,7 @@ function ContractsContent() {
   const [isSaving, setIsSaving] = useState(false);
   const [hourlyFeeContract, setHourlyFeeContract] = useState<Contract | null>(null);
   const [milestonesContract, setMilestonesContract] = useState<Contract | null>(null);
+  const [hourlyFeeCountByContractId, setHourlyFeeCountByContractId] = useState<Record<number, number>>({});
 
   const { t, refreshTranslations } = useTranslations();
   const { languageId } = useLanguage();
@@ -131,6 +135,15 @@ function ContractsContent() {
     () => serviceOffices.find((s) => s.service_office_id === selectedServiceOfficeId) ?? null,
     [serviceOffices, selectedServiceOfficeId]
   );
+
+  /** System lookup "Contract Type" value_name is already localized via fetchLookups + language_id */
+  const getContractTypeLabel = useMemo(() => {
+    return (typeId: number) => {
+      const row = contractTypes.find((ct) => Number(ct.value_id) === Number(typeId));
+      const name = row?.value_name?.trim();
+      return name || String(typeId);
+    };
+  }, [contractTypes]);
 
   const fetchServiceOffices = useCallback(async () => {
     try {
@@ -156,6 +169,7 @@ function ContractsContent() {
   const fetchContracts = useCallback(async () => {
     if (selectedServiceOfficeId === "") {
       setContracts([]);
+      setHourlyFeeCountByContractId({});
       setIsLoadingContracts(false);
       return;
     }
@@ -168,14 +182,62 @@ function ContractsContent() {
         throw new Error(data.error || "Failed to fetch contracts");
       }
       const data = await res.json();
-      setContracts(Array.isArray(data) ? data : []);
+      const list: Contract[] = Array.isArray(data) ? data : [];
+      setContracts(list);
+
+      const hourlyContracts = list.filter((c) => Number(c.contract_type) === HOURLY_CONTRACT_TYPE_ID);
+      if (hourlyContracts.length === 0) {
+        setHourlyFeeCountByContractId({});
+      } else {
+        const pairs = await Promise.all(
+          hourlyContracts.map(async (c) => {
+            const id = Number(c.contract_id);
+            try {
+              const feeRes = await fetch(`/api/contract-user-fee?contract_id=${id}&_ts=${Date.now()}`, {
+                cache: "no-store",
+              });
+              if (!feeRes.ok) return [id, 0] as const;
+              const rows = await feeRes.json();
+              return [id, Array.isArray(rows) ? rows.length : 0] as const;
+            } catch {
+              return [id, 0] as const;
+            }
+          })
+        );
+        setHourlyFeeCountByContractId(Object.fromEntries(pairs));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch contracts");
       setContracts([]);
+      setHourlyFeeCountByContractId({});
     } finally {
       setIsLoadingContracts(false);
     }
   }, [selectedServiceOfficeId]);
+
+  const fetchHourlyFeeCountForContract = useCallback(async (contractId: number): Promise<number> => {
+    try {
+      const feeRes = await fetch(`/api/contract-user-fee?contract_id=${contractId}&_ts=${Date.now()}`, {
+        cache: "no-store",
+      });
+      if (!feeRes.ok) return 0;
+      const rows = await feeRes.json();
+      return Array.isArray(rows) ? rows.length : 0;
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  const closeHourlyFeeModal = useCallback(async () => {
+    const closedContractId = hourlyFeeContract ? Number(hourlyFeeContract.contract_id) : 0;
+    setHourlyFeeContract(null);
+    if (closedContractId > 0) {
+      const count = await fetchHourlyFeeCountForContract(closedContractId);
+      setHourlyFeeCountByContractId((prev) => ({ ...prev, [closedContractId]: count }));
+    }
+    await fetchContracts();
+  }, [fetchContracts, fetchHourlyFeeCountForContract, hourlyFeeContract]);
+
 
   const fetchCustomers = useCallback(async () => {
     if (selectedServiceOfficeId === "") {
@@ -206,16 +268,16 @@ function ContractsContent() {
       const lookups = await lookupsRes.json();
       if (!Array.isArray(lookups)) return;
 
-      const contractTypeLookup = lookups.find(
-        (l: { lookup_table_name: string }) => l.lookup_table_name === "Contract Type"
-      );
-      const ppRecurrenceLookup = lookups.find(
-        (l: { lookup_table_name: string }) => l.lookup_table_name === "PP Proforma Recurrence"
-      );
-      const ppOccasionLookup = lookups.find(
-        (l: { lookup_table_name: string }) =>
-          l.lookup_table_name === "PP Proforma occasion" || l.lookup_table_name === "PP Proforma Occasion"
-      );
+      const findLookup = (candidates: string[]) => {
+        const normalizedCandidates = candidates.map(normalizeLookupName);
+        return lookups.find((l: { lookup_table_name: string }) =>
+          normalizedCandidates.includes(normalizeLookupName(String(l.lookup_table_name ?? "")))
+        );
+      };
+
+      const contractTypeLookup = findLookup(["Contract Type"]);
+      const ppRecurrenceLookup = findLookup(["PP Proforma Recurrence"]);
+      const ppOccasionLookup = findLookup(["PP Proforma occasion", "PP Proforma Occasion"]);
 
       const emptyResponse = new Response(null, { status: 500 });
       const langParam = languageId ? `&language_id=${languageId}` : "";
@@ -234,14 +296,20 @@ function ContractsContent() {
       if (ctRes.ok) {
         const data = await ctRes.json();
         setContractTypes(Array.isArray(data) ? data : []);
+      } else {
+        setContractTypes([]);
       }
       if (ppRes.ok) {
         const data = await ppRes.json();
         setPpProformaRecurrences(Array.isArray(data) ? data : []);
+      } else {
+        setPpProformaRecurrences([]);
       }
       if (occasionRes.ok) {
         const data = await occasionRes.json();
         setPpProformaOccasions(Array.isArray(data) ? data : []);
+      } else {
+        setPpProformaOccasions([]);
       }
     } catch {
       setContractTypes([]);
@@ -354,15 +422,6 @@ function ContractsContent() {
         const createdContract: Contract = { ...created, contract_id: createdId };
         setContracts((prev) => [createdContract, ...prev]);
         notifyCreate(`"${created.contract_name}" created`);
-
-        // For type 2, first persist the contract to get contract_id, then require
-        // at least one contract user fee before final save/update is allowed.
-        if (Number(form.contract_type) === 2) {
-          setEditingContract(createdContract);
-          setForm(contractToFormValues(createdContract));
-          await fetchContracts();
-          return;
-        }
       }
       resetModal();
     } catch (err) {
@@ -456,6 +515,9 @@ function ContractsContent() {
                       {t("Contract Name")}
                     </th>
                     <th className="px-4 lg:px-6 py-4 text-start text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">
+                      {t("Contract Type")}
+                    </th>
+                    <th className="px-4 lg:px-6 py-4 text-start text-xs font-semibold text-slate-500 uppercase hidden md:table-cell">
                       {t("Customer")}
                     </th>
                     <th className="px-4 lg:px-6 py-4 text-start text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">
@@ -472,19 +534,19 @@ function ContractsContent() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                   {isLoadingContracts ? (
                     <tr>
-                      <td colSpan={5} className="px-4 lg:px-6 py-16 text-center text-slate-500">
+                      <td colSpan={6} className="px-4 lg:px-6 py-16 text-center text-slate-500">
                         {t("Loading contracts...")}
                       </td>
                     </tr>
                   ) : selectedServiceOfficeId === "" ? (
                     <tr>
-                      <td colSpan={5} className="px-4 lg:px-6 py-16 text-center text-slate-500">
+                      <td colSpan={6} className="px-4 lg:px-6 py-16 text-center text-slate-500">
                         Select a service office to view contracts
                       </td>
                     </tr>
                   ) : contracts.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 lg:px-6 py-16 text-center text-slate-500">
+                      <td colSpan={6} className="px-4 lg:px-6 py-16 text-center text-slate-500">
                         {t("No contracts yet. Add one for this service office.")}
                       </td>
                     </tr>
@@ -493,6 +555,9 @@ function ContractsContent() {
                       <tr key={contract.contract_id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
                         <td className="px-4 lg:px-6 py-4 font-medium text-slate-900 dark:text-slate-100">
                           {contract.contract_name}
+                        </td>
+                        <td className="px-4 lg:px-6 py-4 hidden md:table-cell text-sm text-slate-600 dark:text-slate-300">
+                          {getContractTypeLabel(Number(contract.contract_type))}
                         </td>
                         <td className="px-4 lg:px-6 py-4 hidden md:table-cell text-sm text-slate-600">
                           {(contract as Contract & { customer_name?: string }).customer_name ??
@@ -511,7 +576,11 @@ function ContractsContent() {
                               <button
                                 type="button"
                                 onClick={() => setHourlyFeeContract(contract)}
-                                className="p-2 rounded-lg hover:bg-violet-50 dark:hover:bg-violet-950/30 text-slate-600 dark:text-slate-400 hover:text-violet-700 dark:hover:text-violet-300"
+                                className={`p-2 rounded-lg ${
+                                  (hourlyFeeCountByContractId[Number(contract.contract_id)] ?? 0) <= 0
+                                    ? "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 animate-pulse"
+                                    : "text-slate-600 dark:text-slate-400 hover:bg-violet-50 dark:hover:bg-violet-950/30 hover:text-violet-700 dark:hover:text-violet-300"
+                                }`}
                                 title={t("Configure hourly fee")}
                               >
                                 <svg
@@ -620,7 +689,7 @@ function ContractsContent() {
       <ContractHourlyFeeModal
         isOpen={hourlyFeeContract != null}
         contract={hourlyFeeContract}
-        onClose={() => setHourlyFeeContract(null)}
+        onClose={closeHourlyFeeModal}
         notifyCreate={notifyCreate}
         notifyUpdate={notifyUpdate}
         notifyDelete={notifyDelete}

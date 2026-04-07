@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/app/lib/auth";
+import {
+  getMilestoneAggregateViolation,
+  milestoneAggregateViolationMessage,
+} from "@/app/lib/contract-milestones-aggregate-validation";
 import { getDbClient } from "@/database/accounts/db-client";
 import type { CreateContractMilestoneInput } from "@/database/contract_milestones_data/types";
 
@@ -94,6 +98,30 @@ export async function POST(request: Request) {
       );
       if (contractCheck.rows.length === 0) {
         return NextResponse.json({ error: "Contract not found or access denied" }, { status: 404 });
+      }
+
+      const aggRes = await client.query(
+        `SELECT c.contract_amount_value::float8 AS cap,
+                COALESCE(SUM(m.milestone_amount), 0)::float8 AS sum_amt,
+                COALESCE(SUM(m.milestone_percentage), 0)::float8 AS sum_pct
+         FROM contracts c
+         LEFT JOIN contract_milestones_data m ON m.contract_id = c.contract_id
+         WHERE c.contract_id = $1
+         GROUP BY c.contract_id, c.contract_amount_value`,
+        [body.contract_id]
+      );
+      const aggRow = aggRes.rows[0] as { cap: number | null; sum_amt: number; sum_pct: number };
+      const newAmt = Number(body.milestone_amount);
+      const newPct = Number(body.milestone_percentage);
+      const totalAmt = Number(aggRow.sum_amt) + newAmt;
+      const totalPct = Number(aggRow.sum_pct) + newPct;
+      const violation = getMilestoneAggregateViolation({
+        contractAmountValue: aggRow.cap,
+        totalMilestoneAmount: totalAmt,
+        totalMilestonePercentage: totalPct,
+      });
+      if (violation) {
+        return NextResponse.json({ error: milestoneAggregateViolationMessage(violation) }, { status: 400 });
       }
 
       const seq =

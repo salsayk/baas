@@ -142,9 +142,25 @@ export function ContractModal({
   const amountDisabled = hasValidContractType && CONTRACT_TYPES_AMOUNT_DISABLED.includes(contractTypeNum);
   const shouldShowPpTab = hasValidContractType && PP_REQUIRED_CONTRACT_TYPES.includes(contractTypeNum as 2 | 3);
   const showPpRecurrenceCapBlock = shouldShowPpTab && contractTypeNum === PP_HOURLY_CONTRACT_TYPE;
+  const isHourlyContractType = shouldShowPpTab && contractTypeNum === PP_HOURLY_CONTRACT_TYPE;
   const currentContractId = editingContract?.contract_id ? Number(editingContract.contract_id) : 0;
   const requiresContractUserFee = shouldShowPpTab && contractTypeNum === PP_HOURLY_CONTRACT_TYPE && currentContractId > 0;
   const hasRequiredContractUserFee = !requiresContractUserFee || contractUserFeeCount > 0;
+  const hasHourlyContractUserFee = currentContractId > 0 && hasRequiredContractUserFee;
+  /** Fee rows need a contract_id; only enforce Active+hourly+fees when editing (PATCH), not on create (POST allows Active first). */
+  const hourlyActiveRequiresSavedFees = !!editingContract;
+  const requiresContractUserFeeForActiveStatus =
+    hourlyActiveRequiresSavedFees &&
+    isHourlyContractType &&
+    Number(form.status) === 1 &&
+    !hasHourlyContractUserFee;
+  const hourlyFeeRequiredMessage = t("At least one Contract user fee record is required before saving this contract");
+  const availableStatuses = editingContract ? ([1, 2, 3] as const) : ([1, 2] as const);
+  const isActiveStatusSelectionDisabled =
+    hourlyActiveRequiresSavedFees &&
+    isHourlyContractType &&
+    !isContractUserFeeLoading &&
+    !hasHourlyContractUserFee;
 
   const contractAmountTooltipKey = useMemo(
     () => (hasValidContractType ? getContractAmountTooltipKey(contractTypeNum) : null),
@@ -259,8 +275,7 @@ export function ContractModal({
     form.pp_initial_amount_value != null &&
     form.pp_upper_cap_reached_indicator != null &&
     form.pp_upper_cap_amount_value != null &&
-    isPpRecurrenceCapsValid &&
-    hasRequiredContractUserFee;
+    isPpRecurrenceCapsValid;
 
   const fetchContractUserFeeCount = useCallback(async () => {
     if (!requiresContractUserFee) {
@@ -301,17 +316,6 @@ export function ContractModal({
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [fetchContractUserFeeCount, isOpen, requiresContractUserFee]);
-
-  const openContractUserFeeScreen = useCallback(() => {
-    if (!editingContract || !Number.isFinite(Number(editingContract.contract_id)) || Number(editingContract.contract_id) <= 0) {
-      onValidationError(
-        "contract_user_fee",
-        t("Save the contract first before configuring hourly fees")
-      );
-      return;
-    }
-    setIsContractUserFeeModalOpen(true);
-  }, [editingContract, onValidationError, t]);
 
   const closeContractUserFeeModal = useCallback(() => {
     setIsContractUserFeeModalOpen(false);
@@ -487,11 +491,12 @@ export function ContractModal({
     if (!activeTab) return;
     if (!validateDetailsAndFocus()) return;
     if (activeTab === "pp" && !validatePpAndFocus()) return;
-    if (requiresContractUserFee && !hasRequiredContractUserFee) {
+    if (requiresContractUserFeeForActiveStatus) {
       onValidationError(
         "contract_user_fee",
-        t("At least one Contract user fee record is required before saving this contract")
+        hourlyFeeRequiredMessage
       );
+      setActiveTab("pp");
       return;
     }
 
@@ -628,6 +633,14 @@ export function ContractModal({
                       contract_amount_value:
                         val != null && CONTRACT_TYPES_AMOUNT_DISABLED.includes(val) ? null : form.contract_amount_value,
                     };
+                    // New hourly contracts: force Inactive so first save can persist contract_id.
+                    if (!editingContract && val === PP_HOURLY_CONTRACT_TYPE) {
+                      updates.status = 2;
+                    }
+                    // New non-hourly contracts can default back to Active.
+                    if (!editingContract && val !== PP_HOURLY_CONTRACT_TYPE) {
+                      updates.status = 1;
+                    }
                     if (val != null && PP_REQUIRED_CONTRACT_TYPES.includes(val as 2 | 3)) {
                       updates.pp_proforma_recurrence = PP_DEFAULT_RECURRENCE_ID;
                       updates.pp_proforma_occasion = getDefaultPpProformaOccasionForRecurrence(
@@ -762,20 +775,52 @@ export function ContractModal({
                     if (el) fieldRefs.current.status = el.querySelector("button");
                   }}
                 >
-                  {([1, 2, 3] as const).map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => onChange({ status: s })}
-                      disabled={isSaving}
-                      className={`flex-1 px-4 py-3 rounded-xl border text-sm font-medium transition-all ${
-                        form.status === s
-                          ? "border-violet-500 bg-violet-50 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300"
-                          : "border-slate-200 text-slate-600 hover:border-slate-300 dark:border-slate-600 dark:text-slate-400"
-                      }`}
-                    >
-                      {t(STATUS_KEYS[s])}
-                    </button>
+                  {availableStatuses.map((s) => (
+                    <div key={s} className="flex-1">
+                      {s === 1 &&
+                      editingContract &&
+                      isHourlyContractType &&
+                      !isContractUserFeeLoading &&
+                      !hasHourlyContractUserFee ? (
+                        <div className="mb-1 flex justify-center">
+                          <span
+                            className="inline-flex align-middle text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-help"
+                            title={hourlyFeeRequiredMessage}
+                            aria-label={hourlyFeeRequiredMessage}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                            >
+                              <circle cx="12" cy="12" r="10" />
+                              <path d="M12 16v-4M12 8h.01" />
+                            </svg>
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="mb-1 h-4" aria-hidden="true" />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onChange({ status: s })}
+                        disabled={isSaving || (s === 1 && isActiveStatusSelectionDisabled)}
+                        className={`w-full px-4 py-3 rounded-xl border text-sm font-medium transition-all ${
+                          form.status === s
+                            ? "border-violet-500 bg-violet-50 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300"
+                            : "border-slate-200 text-slate-600 hover:border-slate-300 dark:border-slate-600 dark:text-slate-400"
+                        }`}
+                      >
+                        {t(STATUS_KEYS[s])}
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -921,31 +966,6 @@ export function ContractModal({
                   )}
                 </div>
               </div>
-
-              {contractTypeNum === PP_HOURLY_CONTRACT_TYPE && (
-                <div className="sm:col-span-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 p-3 sm:p-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={openContractUserFeeScreen}
-                      className="px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
-                      disabled={isSaving || currentContractId <= 0}
-                      title={
-                        currentContractId <= 0
-                          ? t("Save the contract first before configuring hourly fees")
-                          : t("Configure user fee")
-                      }
-                    >
-                      {t("Configure user fee")}
-                    </button>
-                    {requiresContractUserFee && !isContractUserFeeLoading && !hasRequiredContractUserFee ? (
-                      <p className="text-sm text-red-600 dark:text-red-400 font-medium">
-                        {t("At least one Contract user fee record is required before saving this contract")}
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              )}
 
               <section className="sm:col-span-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50/90 dark:bg-slate-800/45 p-4 sm:p-5 shadow-sm space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:items-stretch">
@@ -1199,7 +1219,13 @@ export function ContractModal({
               {shouldShowPpTab && activeTab === "details" ? null : (
                 <button
                   type="submit"
-                  disabled={isSaving || isContractUserFeeLoading || !isDetailsValid || (shouldShowPpTab ? !isPpValid : false)}
+                  disabled={
+                    isSaving ||
+                    isContractUserFeeLoading ||
+                    !isDetailsValid ||
+                    (shouldShowPpTab ? !isPpValid : false) ||
+                    requiresContractUserFeeForActiveStatus
+                  }
                   className="px-5 py-3 sm:py-2.5 rounded-xl bg-violet-600 text-white font-medium disabled:opacity-50 hover:bg-violet-700"
                 >
                   {editingContract ? t("Update") : t("Save")}

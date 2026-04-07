@@ -100,6 +100,8 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       const previousContractType = Number(current.contract_type);
       const effectiveContractType =
         updates.contract_type !== undefined ? Number(updates.contract_type) : previousContractType;
+      const previousStatus = Number(current.status ?? 1);
+      const effectiveStatus = updates.status !== undefined ? Number(updates.status) : previousStatus;
       const requiresPp = [2, 3].includes(effectiveContractType);
       const switchingToHourlyFromType3 = previousContractType === 3 && effectiveContractType === 2;
 
@@ -154,6 +156,24 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         ) {
           return NextResponse.json(
             { error: "PP recurrence cap fields are required for hourly (contract type 2) contracts" },
+            { status: 400 }
+          );
+        }
+      }
+
+      // Business rule: hourly contracts (type 2) cannot be saved as Active unless
+      // at least one contract_user_fee row exists.
+      if (effectiveContractType === 2 && effectiveStatus === 1) {
+        const feeRes = await client.query(
+          `SELECT 1
+           FROM contract_user_fee
+           WHERE contract_id = $1
+           LIMIT 1`,
+          [contractId]
+        );
+        if (feeRes.rows.length === 0) {
+          return NextResponse.json(
+            { error: "At least one Contract user fee record is required before saving this contract" },
             { status: 400 }
           );
         }
