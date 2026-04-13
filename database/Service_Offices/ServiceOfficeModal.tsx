@@ -15,6 +15,14 @@ interface ServiceOfficeModalProps {
   editingOffice: ServiceOffice | null;
   form: CreateServiceOfficeInput & { status: number };
   accounts: { account_id: number; account_name: string }[];
+  subscriptionOffers?: {
+    subscription_offer_id: number;
+    subscription_offer_name: string;
+    /** Lookup row has no active offer row for this type — shown but not selectable. */
+    disabled?: boolean;
+    /** Present when `disabled`; used for stable option value/key. */
+    lookup_value_id?: number;
+  }[];
   isSaving: boolean;
   onClose: () => void;
   onSave: () => void;
@@ -31,6 +39,7 @@ export function ServiceOfficeModal({
   editingOffice,
   form,
   accounts,
+  subscriptionOffers = [],
   isSaving,
   onClose,
   onSave,
@@ -119,6 +128,46 @@ export function ServiceOfficeModal({
           )}
 
           <div>
+            <label htmlFor="subscription_offer_id" className="block text-sm font-medium text-slate-700 mb-2">
+              {t("Subscription offer name")} <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="subscription_offer_id"
+              value={
+                form.subscription_offer_id && form.subscription_offer_id > 0
+                  ? String(form.subscription_offer_id)
+                  : ""
+              }
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v.startsWith("__unavailable__")) return;
+                onChange({ subscription_offer_id: v ? parseInt(v, 10) : 0 });
+              }}
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all"
+              required={!editingOffice}
+              disabled={isSaving}
+            >
+              <option value="">{t("Select subscription offer")}</option>
+              {subscriptionOffers.map((s) => {
+                const disabled = s.disabled === true;
+                const optValue =
+                  disabled && s.lookup_value_id != null
+                    ? `__unavailable__${s.lookup_value_id}`
+                    : String(s.subscription_offer_id);
+                const key =
+                  disabled && s.lookup_value_id != null
+                    ? `unavail-${s.lookup_value_id}`
+                    : s.subscription_offer_id;
+                return (
+                  <option key={key} value={optValue} disabled={disabled}>
+                    {s.subscription_offer_name}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
+          <div>
             <label htmlFor="country" className="block text-sm font-medium text-slate-700 mb-2">
               {t("Country")}
             </label>
@@ -173,7 +222,12 @@ export function ServiceOfficeModal({
               </button>
               <button
                 type="submit"
-                disabled={!form.service_office_name?.trim() || (!accountFixed && (!form.account_id || form.account_id < 1)) || isSaving}
+                disabled={
+                  !form.service_office_name?.trim() ||
+                  (!accountFixed && (!form.account_id || form.account_id < 1)) ||
+                  (!editingOffice && (!form.subscription_offer_id || form.subscription_offer_id < 1)) ||
+                  isSaving
+                }
                 className="px-5 py-3 sm:py-2.5 rounded-xl bg-violet-600 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-violet-700 transition-colors flex items-center justify-center gap-2"
               >
                 {isSaving && (

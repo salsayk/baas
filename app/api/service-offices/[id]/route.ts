@@ -68,6 +68,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     const allowedKeys = [
       "service_office_name",
       "service_office_description",
+      "subscription_offer_id",
       "country",
       "status",
     ] as const;
@@ -91,10 +92,19 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         return NextResponse.json({ error: "Service office name cannot be empty" }, { status: 400 });
       }
     }
+    if (updates.subscription_offer_id !== undefined) {
+      const sid = Number(updates.subscription_offer_id);
+      if (!Number.isInteger(sid) || sid < 1) {
+        return NextResponse.json({ error: "Subscription offer is required" }, { status: 400 });
+      }
+      updates.subscription_offer_id = sid;
+    }
 
     const client = getDbClient();
     await client.connect();
     try {
+      await client.query("BEGIN");
+
       const currentRes = await client.query(
         `SELECT so.account_id, so.service_office_name
          FROM service_offices so
@@ -103,6 +113,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         [user.id, officeId]
       );
       if (currentRes.rows.length === 0) {
+        await client.query("ROLLBACK");
         return NextResponse.json({ error: "Service office not found" }, { status: 404 });
       }
 
@@ -124,28 +135,110 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         [user.id, current.account_id, officeId, nextName]
       );
       if (duplicateCheck.rows.length > 0) {
+        await client.query("ROLLBACK");
         return NextResponse.json(
           { error: "A service office with this name already exists under this account" },
           { status: 409 }
         );
       }
 
-      const setClause = Object.keys(updates)
-        .map((k, i) => `${k} = $${i + 1}`)
-        .join(", ");
-      const values = Object.values(updates);
-      const res = await client.query(
-        `UPDATE service_offices so SET ${setClause}
-         FROM accounts a
-         WHERE a.account_id = so.account_id AND a.user_id = $${values.length + 1}
-         AND so.service_office_id = $${values.length + 2} AND so.status != 3
-         RETURNING so.*`,
-        [...values, user.id, officeId]
-      );
-      if (res.rows.length === 0) {
-        return NextResponse.json({ error: "Service office not found" }, { status: 404 });
+      if (updates.subscription_offer_id !== undefined) {
+        const offerRes = await client.query(
+          `SELECT subscription_offer_id
+           FROM subscriptions_offers
+           WHERE subscription_offer_id = $1 AND status = 1
+           LIMIT 1`,
+          [updates.subscription_offer_id]
+        );
+        if (offerRes.rows.length === 0) {
+          await client.query("ROLLBACK");
+          return NextResponse.json(
+            { error: "Selected subscription offer is invalid or inactive" },
+            { status: 400 }
+          );
+        }
+
+        const activeSubRes = await client.query(
+          `SELECT subscription_id, subscription_offer_id
+           FROM subscriptions
+           WHERE service_office_id = $1 AND status = 1
+           ORDER BY subscription_start_datetime DESC, subscription_id DESC
+           LIMIT 1`,
+          [officeId]
+        );
+
+        const activeSub = activeSubRes.rows[0] as
+          | { subscription_id: number; subscription_offer_id: number }
+          | undefined;
+        const nextOfferId = Number(updates.subscription_offer_id);
+        const currentOfferId = activeSub ? Number(activeSub.subscription_offer_id) : null;
+
+        if (currentOfferId !== nextOfferId) {
+          if (activeSub) {
+            await client.query(
+              `UPDATE subscriptions
+               SET status = 2,
+                   subscription_end_datetime = CURRENT_TIMESTAMP,
+                   updated_datetime = CURRENT_TIMESTAMP
+               WHERE subscription_id = $1`,
+              [activeSub.subscription_id]
+            );
+          }
+
+          await client.query(
+            `INSERT INTO subscriptions (
+               service_office_id,
+               subscription_offer_id,
+               status,
+               subscription_start_datetime
+             ) VALUES ($1, $2, 1, CURRENT_TIMESTAMP)`,
+            [officeId, nextOfferId]
+          );
+        }
       }
-      return NextResponse.json(res.rows[0]);
+
+      const serviceOfficeUpdates = { ...updates };
+      delete serviceOfficeUpdates.subscription_offer_id;
+      let updatedOffice;
+      if (Object.keys(serviceOfficeUpdates).length > 0) {
+        const setClause = Object.keys(serviceOfficeUpdates)
+          .map((k, i) => `${k} = $${i + 1}`)
+          .join(", ");
+        const values = Object.values(serviceOfficeUpdates);
+        const res = await client.query(
+          `UPDATE service_offices so SET ${setClause}
+           FROM accounts a
+           WHERE a.account_id = so.account_id AND a.user_id = $${values.length + 1}
+           AND so.service_office_id = $${values.length + 2} AND so.status != 3
+           RETURNING so.*`,
+          [...values, user.id, officeId]
+        );
+        if (res.rows.length === 0) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: "Service office not found" }, { status: 404 });
+        }
+        updatedOffice = res.rows[0];
+      } else {
+        const res = await client.query(
+          `SELECT so.* FROM service_offices so
+           INNER JOIN accounts a ON a.account_id = so.account_id AND a.user_id = $1
+           WHERE so.service_office_id = $2 AND so.status != 3`,
+          [user.id, officeId]
+        );
+        if (res.rows.length === 0) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: "Service office not found" }, { status: 404 });
+        }
+        updatedOffice = res.rows[0];
+      }
+
+      await client.query("COMMIT");
+      return NextResponse.json(updatedOffice);
+    } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {}
+      throw err;
     } finally {
       await client.end();
     }

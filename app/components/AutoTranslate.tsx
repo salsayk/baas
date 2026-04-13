@@ -12,6 +12,11 @@ function translateExact(value: string, dictionary: Record<string, string>): stri
 }
 
 function translateTextNode(node: Text, dictionary: Record<string, string>) {
+  const parent = node.parentElement;
+  if (parent?.closest("[data-no-auto-translate]")) {
+    return;
+  }
+
   const current = node.nodeValue ?? "";
   const original = textOriginalMap.get(node) ?? current;
   if (!textOriginalMap.has(node)) {
@@ -72,6 +77,9 @@ function translateDom(root: ParentNode, dictionary: Record<string, string>) {
       const textNode = node as Text;
       const parent = textNode.parentElement;
       if (!parent) return NodeFilter.FILTER_REJECT;
+      if (parent.closest("[data-no-auto-translate]")) {
+        return NodeFilter.FILTER_REJECT;
+      }
       const tag = parent.tagName;
       if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT") {
         return NodeFilter.FILTER_REJECT;

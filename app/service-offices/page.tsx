@@ -28,10 +28,17 @@ interface AccountOption {
   account_name: string;
 }
 
+interface SubscriptionOfferOption {
+  subscription_offer_id: number;
+  subscription_offer_name: string;
+  status: number;
+}
+
 const defaultForm: CreateServiceOfficeInput & { status: number } = {
   service_office_name: "",
   service_office_description: null,
   account_id: 0,
+  subscription_offer_id: 0,
   country: null,
   status: 1,
 };
@@ -43,6 +50,7 @@ function ServiceOfficesContent() {
   }, [refreshTranslations]);
 
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
+  const [subscriptionOffers, setSubscriptionOffers] = useState<SubscriptionOfferOption[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<number | "">("");
   const [offices, setOffices] = useState<ServiceOffice[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -72,8 +80,8 @@ function ServiceOfficesContent() {
       if (!res.ok) throw new Error("Failed to fetch accounts");
       const data = await res.json();
       setAccounts(Array.isArray(data) ? data : []);
-      if (selectedAccountId === "" && Array.isArray(data) && data.length > 0) {
-        setSelectedAccountId(data[0].account_id);
+      if (Array.isArray(data) && data.length > 0) {
+        setSelectedAccountId((prev) => (prev === "" ? data[0].account_id : prev));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch accounts");
@@ -108,6 +116,19 @@ function ServiceOfficesContent() {
     }
   }, [selectedAccountId]);
 
+  const fetchSubscriptionOffers = useCallback(async () => {
+    try {
+      const res = await fetch("/api/subscriptions-offers");
+      if (!res.ok) throw new Error("Failed to fetch subscription offers");
+      const data = await res.json();
+      const rows = Array.isArray(data) ? (data as SubscriptionOfferOption[]) : [];
+      setSubscriptionOffers(rows.filter((r) => Number(r.status) === 1));
+    } catch (err) {
+      notifyError(err instanceof Error ? t(err.message) : t("Failed to fetch subscription offers"));
+      setSubscriptionOffers([]);
+    }
+  }, [notifyError, t]);
+
   useEffect(() => {
     fetchAccounts();
   }, [fetchAccounts]);
@@ -116,16 +137,28 @@ function ServiceOfficesContent() {
     fetchOffices();
   }, [fetchOffices]);
 
+  useEffect(() => {
+    fetchSubscriptionOffers();
+  }, [fetchSubscriptionOffers]);
+
   const resetModal = () => {
     setIsModalOpen(false);
     setEditingOffice(null);
-    setForm({ ...defaultForm, account_id: selectedAccountId || 0 });
+    setForm({
+      ...defaultForm,
+      account_id: selectedAccountId || 0,
+      subscription_offer_id: subscriptionOffers[0]?.subscription_offer_id ?? 0,
+    });
   };
 
   const openCreateModal = () => {
     setEditingOffice(null);
     const aid = selectedAccountId !== "" ? selectedAccountId : (accounts[0]?.account_id ?? 0);
-    setForm({ ...defaultForm, account_id: aid });
+    setForm({
+      ...defaultForm,
+      account_id: aid,
+      subscription_offer_id: subscriptionOffers[0]?.subscription_offer_id ?? 0,
+    });
     setIsModalOpen(true);
   };
 
@@ -135,6 +168,10 @@ function ServiceOfficesContent() {
       service_office_name: office.service_office_name,
       service_office_description: office.service_office_description ?? null,
       account_id: office.account_id,
+      subscription_offer_id:
+        Number(office.current_subscription_offer_id ?? 0) > 0
+          ? Number(office.current_subscription_offer_id)
+          : (subscriptionOffers[0]?.subscription_offer_id ?? 0),
       country: office.country ?? null,
       status: office.status,
     });
@@ -147,6 +184,7 @@ function ServiceOfficesContent() {
       service_office_name: "copy of " + (office.service_office_name ?? ""),
       service_office_description: office.service_office_description ?? null,
       account_id: office.account_id,
+      subscription_offer_id: subscriptionOffers[0]?.subscription_offer_id ?? 0,
       country: office.country ?? null,
       status: office.status,
     });
@@ -155,6 +193,10 @@ function ServiceOfficesContent() {
 
   const handleSave = async () => {
     if (!form.service_office_name?.trim() || !form.account_id) return;
+    if (!editingOffice && (!form.subscription_offer_id || form.subscription_offer_id < 1)) {
+      notifyError(t("Subscription offer is required"));
+      return;
+    }
     setIsSaving(true);
     try {
       if (editingOffice) {
@@ -164,6 +206,7 @@ function ServiceOfficesContent() {
           body: JSON.stringify({
             service_office_name: form.service_office_name,
             service_office_description: form.service_office_description,
+            subscription_offer_id: form.subscription_offer_id,
             country: form.country,
             status: form.status,
           }),
@@ -183,7 +226,10 @@ function ServiceOfficesContent() {
         const res = await fetch("/api/service-offices", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify({
+            ...form,
+            subscription_offer_id: form.subscription_offer_id,
+          }),
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -192,6 +238,7 @@ function ServiceOfficesContent() {
         const created = await res.json();
         setOffices((prev) => [created, ...prev]);
         notifyCreate(`"${created.service_office_name}" created`);
+        await fetchOffices();
       }
       resetModal();
     } catch (err) {
@@ -485,6 +532,7 @@ function ServiceOfficesContent() {
         editingOffice={editingOffice}
         form={form}
         accounts={accounts}
+        subscriptionOffers={subscriptionOffers}
         isSaving={isSaving}
         onClose={resetModal}
         onSave={handleSave}

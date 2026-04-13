@@ -34,7 +34,12 @@ function defaultForm(): SubscriptionOfferFormState {
 function offerToForm(offer: SubscriptionOffer): SubscriptionOfferFormState {
   const typeNum = Number(offer.subscription_offer_type);
   const price = offer.subscription_offer_monthly_price;
-  const num = typeof price === "string" ? parseFloat(price) : Number(price);
+  const num =
+    price === null || price === undefined
+      ? NaN
+      : typeof price === "string"
+        ? parseFloat(price)
+        : Number(price);
   const priceStr =
     typeNum === SUBSCRIPTION_OFFER_TYPE_ZERO_PRICE
       ? "0"
@@ -93,21 +98,22 @@ function SubscriptionsOffersContent() {
     }
   }, [languageId]);
 
-  const fetchOffers = useCallback(async () => {
+  /** Reload grid from server (used on mount and whenever the offer modal closes / after save). */
+  const reloadOffers = useCallback(async () => {
     try {
       setError(null);
-      const res = await fetch(`/api/subscriptions-offers?_=${Date.now()}`, {
+      const res = await fetch(`/api/subscriptions-offers?t=${Date.now()}`, {
         cache: "no-store",
-        headers: { "Cache-Control": "no-cache" },
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `Failed to fetch (${res.status})`);
+        throw new Error(typeof data.error === "string" ? data.error : `Failed to fetch (${res.status})`);
       }
       const data = await res.json();
       setOffers(Array.isArray(data) ? data : []);
-    } catch {
-      setError("Failed to fetch subscription offers");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to fetch subscription offers");
       setOffers([]);
     } finally {
       setIsLoading(false);
@@ -116,8 +122,8 @@ function SubscriptionsOffersContent() {
 
   useEffect(() => {
     setIsLoading(true);
-    fetchOffers();
-  }, [fetchOffers]);
+    void reloadOffers();
+  }, [reloadOffers]);
 
   useEffect(() => {
     fetchOfferTypes();
@@ -129,11 +135,18 @@ function SubscriptionsOffersContent() {
     return (valueId: number) => map.get(valueId) ?? String(valueId);
   }, [offerTypeOptions]);
 
-  const resetModal = () => {
+  const closeModalState = useCallback(() => {
     setIsModalOpen(false);
     setEditingOffer(null);
     setForm(defaultForm());
-  };
+  }, []);
+
+  /** Close modal (Cancel / backdrop / X) and reload the grid from the server. */
+  const onModalClose = useCallback(() => {
+    closeModalState();
+    setIsLoading(true);
+    void reloadOffers();
+  }, [closeModalState, reloadOffers]);
 
   const openCreateModal = () => {
     setEditingOffer(null);
@@ -179,7 +192,7 @@ function SubscriptionsOffersContent() {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || "Failed to update");
         }
-        await res.json();
+        await res.json().catch(() => null);
         notifyUpdate(t("Subscription offer updated"));
       } else {
         const res = await fetch("/api/subscriptions-offers", {
@@ -198,11 +211,12 @@ function SubscriptionsOffersContent() {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || "Failed to create");
         }
-        await res.json();
+        await res.json().catch(() => null);
         notifyCreate(t("Subscription offer created"));
       }
-      await fetchOffers();
-      resetModal();
+      setIsLoading(true);
+      await reloadOffers();
+      closeModalState();
     } catch (err) {
       notifyError(err instanceof Error ? t(err.message) : t("Operation failed"));
     } finally {
@@ -219,13 +233,15 @@ function SubscriptionsOffersContent() {
       }
       setDeleteConfirm(null);
       notifyDelete(t("Subscription offer deleted"));
-      await fetchOffers();
+      setIsLoading(true);
+      await reloadOffers();
     } catch (err) {
       notifyError(err instanceof Error ? t(err.message) : t("Delete failed"));
     }
   };
 
-  const formatPrice = (v: string | number) => {
+  const formatPrice = (v: string | number | null | undefined) => {
+    if (v === null || v === undefined) return "—";
     const n = typeof v === "string" ? parseFloat(v) : Number(v);
     if (!Number.isFinite(n)) return "—";
     return n.toFixed(2);
@@ -323,10 +339,15 @@ function SubscriptionsOffersContent() {
                         <td className="px-4 lg:px-6 py-4 text-slate-700 dark:text-slate-300 hidden md:table-cell">
                           {getTypeLabel(Number(offer.subscription_offer_type))}
                         </td>
-                        <td className="px-4 lg:px-6 py-4 text-end tabular-nums text-slate-800 dark:text-slate-200">
+                        <td
+                          className="px-4 lg:px-6 py-4 text-end tabular-nums text-slate-800 dark:text-slate-200"
+                          data-no-auto-translate
+                        >
                           {formatPrice(offer.subscription_offer_monthly_price)}
                         </td>
-                        <td className="px-4 lg:px-6 py-4 hidden sm:table-cell">{offer.offer_currency}</td>
+                        <td className="px-4 lg:px-6 py-4 hidden sm:table-cell">
+                          {offer.offer_currency ?? "—"}
+                        </td>
                         <td className="px-4 lg:px-6 py-4 hidden lg:table-cell text-slate-700 dark:text-slate-300">
                           {Number(offer.administrator_restricted_offer) === 1 ? t("Yes") : t("No")}
                         </td>
@@ -413,7 +434,7 @@ function SubscriptionsOffersContent() {
         form={form}
         offerTypeOptions={offerTypeOptions}
         isSaving={isSaving}
-        onClose={resetModal}
+        onClose={onModalClose}
         onSave={handleSave}
         onChange={(updates) => setForm((f) => ({ ...f, ...updates }))}
       />

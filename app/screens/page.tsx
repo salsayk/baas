@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { NotificationContainer, useNotifications } from "@/app/components/notifications";
 import { Sidebar, SidebarProvider, MobileMenuButton } from "@/app/components/sidebar";
+import { useLanguage } from "@/app/context/LanguageContext";
+import { useTranslations } from "@/app/context/TranslationContext";
 import { ScreenModal } from "@/database/screens/ScreenModal";
 import { ScreenTranslationsModal } from "@/database/screens/ScreenTranslationsModal";
 import { ScreenPermissionsModal } from "@/database/screens/ScreenPermissionsModal";
 import type { UiScreen, CreateUiScreenInput } from "@/database/screens/types";
+import { resolveUiScreenDisplayDescription, resolveUiScreenDisplayName } from "@/database/screens/types";
 
 const defaultForm: CreateUiScreenInput = {
   screen_name: "",
@@ -34,27 +37,56 @@ function ScreensContent() {
     notifyError,
   } = useNotifications();
 
+  const { languageId, mounted } = useLanguage();
+  const screensFetchSeq = useRef(0);
+
   const fetchScreens = useCallback(async () => {
+    if (!mounted) return;
+    const seq = ++screensFetchSeq.current;
     try {
       setError(null);
-      const res = await fetch("/api/ui-screens");
+      const params = new URLSearchParams();
+      if (languageId != null && languageId >= 1) {
+        params.set("language_id", String(languageId));
+      }
+      const q = params.toString();
+      const res = await fetch(q ? `/api/ui-screens?${q}` : "/api/ui-screens", {
+        cache: "no-store",
+      });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || `Failed to fetch (${res.status})`);
       }
       const data = await res.json();
+      if (seq !== screensFetchSeq.current) return;
       setScreens(Array.isArray(data) ? data : []);
     } catch (err) {
+      if (seq !== screensFetchSeq.current) return;
       setError(err instanceof Error ? err.message : "Failed to fetch screens");
       setScreens([]);
     } finally {
-      setIsLoading(false);
+      if (seq === screensFetchSeq.current) {
+        setIsLoading(false);
+      }
     }
-  }, []);
+  }, [languageId, mounted]);
 
   useEffect(() => {
+    if (!mounted) return;
+    setIsLoading(true);
     fetchScreens();
-  }, [fetchScreens]);
+  }, [fetchScreens, mounted]);
+
+  useEffect(() => {
+    setTranslationScreen((prev) => {
+      if (!prev) return prev;
+      return screens.find((s) => s.screen_id === prev.screen_id) ?? prev;
+    });
+    setPermissionsScreen((prev) => {
+      if (!prev) return prev;
+      return screens.find((s) => s.screen_id === prev.screen_id) ?? prev;
+    });
+  }, [screens]);
 
   const resetModal = () => {
     setIsModalOpen(false);
@@ -254,10 +286,12 @@ function ScreensContent() {
                     screens.map((screen) => (
                       <tr key={screen.screen_id} className="group hover:bg-slate-50/50 transition-colors">
                         <td className="px-4 lg:px-6 py-4">
-                          <span className="font-medium text-slate-900">{screen.screen_name}</span>
+                          <span className="font-medium text-slate-900">
+                            {resolveUiScreenDisplayName(screen)}
+                          </span>
                         </td>
                         <td className="px-4 lg:px-6 py-4 hidden sm:table-cell text-sm text-slate-600 truncate max-w-[280px]">
-                          {screen.screen_description || "—"}
+                          {resolveUiScreenDisplayDescription(screen) || "—"}
                         </td>
                         <td className="px-4 lg:px-6 py-4">
                           <div className="flex items-center justify-end gap-1">

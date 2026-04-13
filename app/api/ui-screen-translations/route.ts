@@ -38,7 +38,14 @@ export async function GET(request: Request) {
                 us.screen_name AS base_name, us.screen_description AS base_description
          FROM ui_screen_translations ust
          JOIN ui_screens us ON us.screen_id = ust.screen_id
-         WHERE ust.screen_id = $1 AND ust.language_id = $2`,
+         WHERE ust.screen_id = $1::bigint
+           AND EXISTS (
+             SELECT 1
+             FROM languages ul
+             WHERE ul.id = ust.language_id
+               AND ul.language_name = (SELECT language_name FROM languages WHERE id = $2::bigint LIMIT 1)
+           )
+         LIMIT 1`,
         [scrId, langId]
       );
       return NextResponse.json(res.rows[0] ?? null);

@@ -111,7 +111,7 @@ The app is multi-tenant at the **account** level: each logged-in user (Google OA
 |----------|--------|
 | `app/components/sidebar.tsx` | Main nav sidebar; uses Session, language, translations; ThemeSelector; mobile toggle. |
 | `app/components/ThemeSelector.tsx` | Theme toggle (currently hidden for UX). |
-| `app/components/AutoTranslate.tsx` | Applies automatic translation behavior. |
+| `app/components/AutoTranslate.tsx` | Walks `document.body` text nodes and applies `languages_screens_translations` via `translateExact`. Skips subtrees marked `data-no-auto-translate` (e.g. dynamic numeric columns like subscription-offer prices) so React updates are not overwritten by a stale cached “original” string. |
 | `app/components/notifications.tsx` | In-app notifications. |
 | `components/header.tsx`, `components/hero.tsx`, etc. | Landing page sections. |
 
@@ -126,8 +126,8 @@ The app is multi-tenant at the **account** level: each logged-in user (Google OA
 
 Reusable modals and wizards live under `database/` and are used by app pages:
 
-- **Accounts:** `AccountModal`, `AccountWizardModal`, `EmailVerificationModal`
-- **Service offices:** `ServiceOfficeModal`, `AccountServiceOfficesModal`
+- **Accounts:** `AccountModal`, `AccountWizardModal` (Service Office step: subscription-offer options are **all rows** from system lookup table **8** for the current UI language, merged with **active** `subscriptions_offers` by `subscription_offer_type`; each selectable option submits `subscription_offer_id`), `EmailVerificationModal`
+- **Service offices:** `ServiceOfficeModal`, `AccountServiceOfficesModal`; modal includes subscription-offer dropdown from active `subscriptions_offers` rows. On create it is required and creates initial `subscriptions` row. On edit, changing offer closes current active `subscriptions` row (`status=2`, end/update timestamps) and inserts a new active row.
 - **Customers:** `CustomerModal`, `ServiceOfficeCustomersModal`
 - **Projects:** `ProjectModal`, `CustomerProjectsModal`, `AssignContractsModal`
 - **Contracts:** `ContractModal`; the contracts grid (`app/contracts/page.tsx`) shows **contract type** as a translated label from the Contract Type system lookup (not the raw stored id). **Hourly create:** the modal closes after the first successful save (no second save to obtain `contract_id` for a separate fee button). Active + hourly still requires at least one `contract_user_fee` row when **updating** an existing contract (`PATCH /api/contracts/[id]`). Hourly (contract type 2) user-fee configuration uses `ContractHourlyFeeModal` (`database/contract_user_fee/ContractHourlyFeeModal.tsx`) from the contract wizard (Configure user fee) and from the contracts grid; milestone configuration for contract types 0/1 uses `ContractMilestonesModal` + `ContractMilestoneModal` (`database/contract_milestones_data/`) with row drag-and-drop reorder (`POST /api/contract-milestones/reorder`). Milestone add/edit enforces total amount vs `contract_amount_value` and total percentage ≤ 100% (`app/lib/contract-milestones-aggregate-validation.ts`).
@@ -136,7 +136,7 @@ Reusable modals and wizards live under `database/` and are used by app pages:
 - **System lookups:** `SystemLookupModal`, `LookupValuesModal`
 - **Screens:** `ScreenModal`, `ScreenTranslationsModal`, `ScreenPermissionsModal`
 - **Languages:** `LanguageModal`
-- **Subscriptions offers:** `SubscriptionOfferModal` (`database/subscriptions_offers/SubscriptionOfferModal.tsx`); grid and CRUD on `app/subscriptions-offers/page.tsx`. Offer **type** uses `system_lookup_values` for `lookup_table_id = 8` (with `language_id` for labels). On save, `subscription_offer_name` is set to the **translated** `value_name` for the selected type. **Currency** options match contracts (`database/contracts/currencies.ts`). If **type** `value_id` is **0**, monthly price is forced to **0** and the price field is disabled (`SUBSCRIPTION_OFFER_TYPE_ZERO_PRICE`). **At most one Active row per `subscription_offer_type`** (partial unique index `uq_subscriptions_offers_active_offer_type` where `status = 1`); multiple Inactive/Deleted rows per type allowed. API error text matches `database/subscriptions_offers/active-type-conflict-message.ts` for `t()` translation. `updated_datetime` is NULL until the first UPDATE (trigger sets it on update only).
+- **Subscriptions offers:** `SubscriptionOfferModal` (`database/subscriptions_offers/SubscriptionOfferModal.tsx`); grid and CRUD on `app/subscriptions-offers/page.tsx`. Offer **type** uses `system_lookup_values` for `lookup_table_id = 8` (with `language_id` for labels). On save, `subscription_offer_name` is set to the **translated** `value_name` for the selected type. **Monthly price and currency** are stored in **`subscription_offer_prices`** (current row = `price_end_datetime IS NULL`); changing price/currency closes the previous row (`price_end_datetime` set) and inserts a new open row. **Currency** options match contracts (`database/contracts/currencies.ts`). If **type** `value_id` is **0**, monthly price is forced to **0** and the price field is disabled (`SUBSCRIPTION_OFFER_TYPE_ZERO_PRICE`). **At most one Active offer per `subscription_offer_type`** on `subscriptions_offers` (partial unique where `status = 1`). API error text matches `database/subscriptions_offers/active-type-conflict-message.ts` for `t()` translation. `updated_datetime` is NULL until the first UPDATE (trigger sets it on update only).
 
 Conventions: functional components, TypeScript interfaces, named exports; modals receive `isOpen`, `onClose`, and entity-specific props.
 
@@ -158,8 +158,8 @@ Conventions: functional components, TypeScript interfaces, named exports; modals
 | Auth | GET, POST | `/api/auth/[...nextauth]` | NextAuth handler. |
 | Accounts | GET, POST | `/api/accounts` | GET/POST; GET by user. |
 | Accounts | GET, PATCH, DELETE | `/api/accounts/[id]` | Single account. |
-| Service offices | GET, POST | `/api/service-offices` | Filter by account. |
-| Service offices | GET, PATCH, DELETE | `/api/service-offices/[id]` | |
+| Service offices | GET, POST | `/api/service-offices` | Filter by account. **POST** requires `subscription_offer_id`; creates service office + initial `subscriptions` row (`status=1`, `subscription_start_datetime=CURRENT_TIMESTAMP`) in one transaction. |
+| Service offices | GET, PATCH, DELETE | `/api/service-offices/[id]` | **PATCH** supports `subscription_offer_id`; when changed, inactivates current active subscription (status=2, sets `subscription_end_datetime` and `updated_datetime` to now) and inserts a new active subscription row. |
 | Customers | GET, POST | `/api/customers` | Optional `service_office_id`. |
 | Customers | GET, PATCH, DELETE | `/api/customers/[id]` | |
 | Projects | GET, POST | `/api/projects` | By service_office_id, customer_id. |
@@ -175,13 +175,13 @@ Conventions: functional components, TypeScript interfaces, named exports; modals
 | Service office users | GET, PATCH, DELETE | `/api/service-office-users/[id]` | |
 | User data authorization | GET, POST | `/api/user-data-authorization` | Assign customers/projects/contracts to service office user. |
 | Entity pairs | GET, POST | `/api/entities-pairs` | Project–contract links (e.g. type 0). |
-| Subscriptions offers | GET, POST | `/api/subscriptions-offers` | Authenticated; list / create rows in `subscriptions_offers`. |
-| Subscriptions offers | PATCH, DELETE | `/api/subscriptions-offers/[id]` | Update / delete. |
+| Subscriptions offers | GET, POST | `/api/subscriptions-offers` | Authenticated; list / create. JSON rows use `subscriptionOfferRowToJson` (e.g. `subscription_offer_monthly_price` as string). |
+| Subscriptions offers | PATCH, DELETE | `/api/subscriptions-offers/[id]` | Update / delete; PATCH/POST return the same JSON shape as the list. |
 | Languages | GET, POST | `/api/languages` | |
 | Languages | PATCH, DELETE | `/api/languages/[id]` | |
-| UI screens | GET, POST | `/api/ui-screens` | |
+| UI screens | GET, POST | `/api/ui-screens` | **GET:** optional query `language_id`; `localized_name` / `localized_description` from `ui_screen_translations` (matched by `language_name` like name), phrase fallbacks (`source_text` = name or description), else English columns. |
 | UI screens | GET, PATCH, DELETE | `/api/ui-screens/[id]` | |
-| UI screen translations | GET, POST | `/api/ui-screen-translations` | |
+| UI screen translations | GET, POST | `/api/ui-screen-translations` | **GET:** resolves a row by `screen_id` and `languages.language_name` for the requested `language_id` (not only exact `language_id`). |
 | UI screen user type permissions | GET, POST, DELETE | `/api/ui-screen-usertype-permissions` | |
 | System lookups | GET, POST | `/api/system-lookups` | |
 | System lookups | GET, PATCH, DELETE | `/api/system-lookups/[id]` | |
@@ -223,14 +223,16 @@ Conventions: functional components, TypeScript interfaces, named exports; modals
 | **entities_pairs** | `pair_id`, `entities_pair_type`, `parent_entity_id`, `child_entity_id`, `sort_order`. Used e.g. for project–contract links (type 0). |
 | **languages** | `id`, `language_name`, `direction` (0=LTR, 1=RTL). |
 | **ui_screens** | `screen_id`, `screen_name`, `screen_description`. |
-| **ui_screen_translations** | Per-screen, per-language name/description. |
+| **ui_screen_translations** | Per-screen, per-language name/description (`ScreenTranslationsModal` + `/api/ui-screen-translations`). |
 | **ui_screen_usertype_permissions** | Screen–user-type permissions. |
 | **system_lookups** | `lookup_table_id`, `lookup_table_name`, description. |
 | **system_lookup_values** | Lookup rows (table reference by name or FK depending on migration). |
 | **system_lookup_translations** / **system_lookup_value_translations** | Localized labels. |
 | **api_keys** | API keys (if used). |
 | **email_verification** | Email verification codes (e.g. for account flows). |
-| **subscriptions_offers** | `subscription_offer_id`, `administrator_restricted_offer` (0/1), `subscription_offer_name` (100 chars), `subscription_offer_type` (`value_id` for app-managed lookup **8**), `subscription_offer_monthly_price`, `offer_currency` (ISO 4217, 3 chars), `status` (1=Active, 2=Inactive, 3=Deleted), `creation_datetime`, `updated_datetime` (NULL until first UPDATE; trigger sets on update). **Partial unique** on `subscription_offer_type` where `status = 1` (`uq_subscriptions_offers_active_offer_type`) — only one Active row per type. Scripts: `create-subscriptions-offers-table.sql`, `add-unique-subscription-offer-type.sql`, `migrate-subscriptions-offers-partial-unique-active.sql` (replace full unique on type), `migrate-remove-lookup-table-id-and-updated-default.sql` (older schemas). |
+| **subscriptions_offers** | `subscription_offer_id`, `administrator_restricted_offer` (0/1), `subscription_offer_name` (100 chars), `subscription_offer_type` (`value_id` for lookup **8**), `status` (1=Active, 2=Inactive, 3=Deleted), `creation_datetime`, `updated_datetime` (NULL until first UPDATE; trigger). **No** monthly price/currency on this table — they live in **`subscription_offer_prices`**. **Partial unique** on `subscription_offer_type` where `status = 1`. Scripts: `create-subscriptions-offers-table.sql`, `migrate-move-price-columns-to-subscription-offer-prices.sql` (legacy DBs that still had price columns), older migrates as before. |
+| **subscription_offer_prices** | Price **history** per offer: `subscription_offer_price_id`, `subscription_offer_id` (FK CASCADE), `subscription_offer_monthly_price`, `offer_currency` (ISO 4217 uppercase), `price_start_datetime`, `price_end_datetime` (NULL = current/open row). **At most one open row per offer** (`uq_subscription_offer_prices_one_open` where `price_end_datetime IS NULL`). API `POST/PATCH /api/subscriptions-offers` closes the previous open row and inserts a new one when price or currency changes. Scripts: `database/subscription_offer_prices/create-subscription-offer-prices-table.sql`; logic: `app/lib/subscription-offer-prices.ts`. |
+| **subscriptions** | `subscription_id`, `service_office_id`, `subscription_offer_id`, `status` (1=Active, 2=Inactive, 3=Deleted), `subscription_start_datetime`, `subscription_end_datetime` (NULL default), `creation_datetime`, `updated_datetime` (NULL until first UPDATE). Scripts: `database/subscriptions/create-subscriptions-table.sql`, `database/subscriptions/migrate-backfill-subscriptions-from-type-0.sql` (backfill existing service offices with active type-0 offer when missing). |
 
 Create scripts live under `database/<entity>/create-*.sql` and are run manually or via `database/run-sql.mjs`.
 
@@ -264,10 +266,10 @@ config/                   # app-feature-settings.json (feature flags / app toggl
 database/
   accounts/               # db-client, types, create table, modals
   Service_Offices/        # create table, modals, types, countries
-  customer/, project/, contracts/, contract_milestones_data/, contract_milestones_data_for_success/, subcontractors/, service_office_users/
+  customer/, project/, contracts/, contract_milestones_data/, contract_milestones_data_for_success/, subcontractors/, service_office_users/, subscriptions/
   service_office_user_data_authorization/, entities_pairs/
   system_lookups/, system_lookup_values/, screens/, Languages/, Languages_Screens/
-  Translations/, api_keys/, email_verification/, subscriptions_offers/, users/
+  Translations/, api_keys/, email_verification/, subscriptions_offers/, subscription_offer_prices/, users/
   run-sql.mjs, verify-table.mjs, db-config.json
 Documents/
   architecture.md         # This file

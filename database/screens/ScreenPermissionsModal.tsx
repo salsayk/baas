@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useLanguage } from "@/app/context/LanguageContext";
+import { resolveUiScreenDisplayName } from "@/database/screens/types";
 
 const USER_TYPE_LOOKUP_ID = 2;
 const PERMISSION_LOOKUP_ID = 5;
@@ -23,7 +24,7 @@ interface PermissionRow {
 
 interface ScreenPermissionsModalProps {
   isOpen: boolean;
-  screen: { screen_id: number; screen_name: string } | null;
+  screen: { screen_id: number; screen_name: string; localized_name?: string } | null;
   onClose: () => void;
   onNotify: (message: string, type: "create" | "update" | "delete" | "error") => void;
 }
@@ -155,7 +156,7 @@ export function ScreenPermissionsModal({
           <h2 className="text-xl font-bold text-slate-900">Manage Permissions</h2>
           <p className="mt-1 text-sm text-slate-500">
             {screen
-              ? "Permissions for \"" + screen.screen_name + "\""
+              ? "Permissions for \"" + resolveUiScreenDisplayName(screen) + "\""
               : "Select a screen from the table first"}
           </p>
         </div>

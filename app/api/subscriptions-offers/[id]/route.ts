@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/app/lib/auth";
 import { getDbClient } from "@/database/accounts/db-client";
+import {
+  applySubscriptionOfferPriceChange,
+  fetchSubscriptionOfferWithCurrentPrice,
+  subscriptionOfferRowToJson,
+} from "@/app/lib/subscription-offer-prices";
 import { SUBSCRIPTIONS_OFFER_ACTIVE_TYPE_CONFLICT } from "@/database/subscriptions_offers/active-type-conflict-message";
 import type { UpdateSubscriptionOfferInput } from "@/database/subscriptions_offers/types";
 
@@ -47,19 +52,6 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       }
       updates.subscription_offer_type = Number(body.subscription_offer_type);
     }
-    if (body.subscription_offer_monthly_price !== undefined) {
-      if (typeof body.subscription_offer_monthly_price !== "number" || Number.isNaN(body.subscription_offer_monthly_price)) {
-        return NextResponse.json({ error: "subscription_offer_monthly_price is invalid" }, { status: 400 });
-      }
-      updates.subscription_offer_monthly_price = body.subscription_offer_monthly_price;
-    }
-    if (body.offer_currency !== undefined) {
-      const c = String(body.offer_currency).trim().toUpperCase().slice(0, 3);
-      if (c.length !== 3) {
-        return NextResponse.json({ error: "offer_currency must be a 3-character ISO code" }, { status: 400 });
-      }
-      updates.offer_currency = c;
-    }
     if (body.status !== undefined) {
       if (![1, 2, 3].includes(Number(body.status))) {
         return NextResponse.json({ error: "status must be 1, 2, or 3" }, { status: 400 });
@@ -67,7 +59,20 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       updates.status = Number(body.status);
     }
 
-    if (Object.keys(updates).length === 0) {
+    const wantsPriceUpdate =
+      body.subscription_offer_monthly_price !== undefined && body.offer_currency !== undefined;
+
+    if (wantsPriceUpdate) {
+      if (typeof body.subscription_offer_monthly_price !== "number" || Number.isNaN(body.subscription_offer_monthly_price)) {
+        return NextResponse.json({ error: "subscription_offer_monthly_price is invalid" }, { status: 400 });
+      }
+      const c = String(body.offer_currency).trim().toUpperCase().slice(0, 3);
+      if (c.length !== 3) {
+        return NextResponse.json({ error: "offer_currency must be a 3-character ISO code" }, { status: 400 });
+      }
+    }
+
+    if (Object.keys(updates).length === 0 && !wantsPriceUpdate) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
     }
 
@@ -101,20 +106,40 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         }
       }
 
-      const keys = Object.keys(updates);
-      const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(", ");
-      const values = keys.map((k) => updates[k]);
-      const res = await client.query(
-        `UPDATE subscriptions_offers SET ${setClause}
-         WHERE subscription_offer_id = $${values.length + 1}
-         RETURNING *`,
-        [...values, subscriptionOfferId]
-      );
-      if (res.rows.length === 0) {
-        return NextResponse.json({ error: "Subscription offer not found" }, { status: 404 });
+      await client.query("BEGIN");
+
+      if (Object.keys(updates).length > 0) {
+        const keys = Object.keys(updates);
+        const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(", ");
+        const values = keys.map((k) => updates[k]);
+        await client.query(
+          `UPDATE subscriptions_offers SET ${setClause}
+           WHERE subscription_offer_id = $${values.length + 1}`,
+          [...values, subscriptionOfferId]
+        );
       }
-      return NextResponse.json(res.rows[0]);
+
+      if (wantsPriceUpdate) {
+        await applySubscriptionOfferPriceChange(
+          client,
+          subscriptionOfferId,
+          Number(body.subscription_offer_monthly_price),
+          String(body.offer_currency)
+        );
+      }
+
+      const merged = await fetchSubscriptionOfferWithCurrentPrice(client, subscriptionOfferId);
+      await client.query("COMMIT");
+      if (!merged) {
+        return NextResponse.json({ error: "Subscription offer not found after update" }, { status: 404 });
+      }
+      return NextResponse.json(subscriptionOfferRowToJson(merged as Record<string, unknown>));
     } catch (err: unknown) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        /* ignore */
+      }
       const pgErr = err as { code?: string };
       if (pgErr.code === "23505") {
         return NextResponse.json({ error: SUBSCRIPTIONS_OFFER_ACTIVE_TYPE_CONFLICT }, { status: 409 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { useLanguage } from "@/app/context/LanguageContext";
 import { useTranslations } from "@/app/context/TranslationContext";
 import { AccountModal } from "@/database/accounts/AccountModal";
 import { ServiceOfficeModal } from "@/database/Service_Offices/ServiceOfficeModal";
@@ -11,6 +12,8 @@ import type { CreateServiceOfficeInput } from "@/database/Service_Offices/types"
 import type { CreateServiceOfficeUserInput, ServiceOfficeUserFormState } from "@/database/service_office_users/types";
 
 const USER_TYPE_LOOKUP_ID = 2;
+/** Subscription offer type labels (system lookup); merged with active `subscriptions_offers` by `subscription_offer_type`. */
+const SUBSCRIPTION_OFFER_TYPE_LOOKUP_ID = 8;
 
 const defaultAccountForm: CreateAccountInput & { status: number } = {
   account_name: "",
@@ -30,8 +33,16 @@ const defaultServiceOfficeForm: CreateServiceOfficeInput & { status: number } = 
   service_office_name: "",
   service_office_description: null,
   account_id: 0,
+  subscription_offer_id: 0,
   country: null,
   status: 1,
+};
+
+type WizardSubscriptionOfferOption = {
+  subscription_offer_id: number;
+  subscription_offer_name: string;
+  disabled?: boolean;
+  lookup_value_id?: number;
 };
 
 const defaultUserForm: import("@/database/service_office_users/types").ServiceOfficeUserFormState = {
@@ -62,6 +73,7 @@ export function AccountWizardModal({
   onNotify,
 }: AccountWizardModalProps) {
   const { t, refreshTranslations } = useTranslations();
+  const { languageId } = useLanguage();
   const [activeTab, setActiveTab] = useState<0 | 1 | 2>(0);
   const [accountForm, setAccountForm] = useState<CreateAccountInput & { status: number }>(defaultAccountForm);
   const [serviceOfficeForm, setServiceOfficeForm] = useState<CreateServiceOfficeInput & { status: number }>(
@@ -78,6 +90,7 @@ export function AccountWizardModal({
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
   /** Until loaded, assume true so verification stays on by default. */
   const [emailVerificationEnabled, setEmailVerificationEnabled] = useState(true);
+  const [subscriptionOfferOptions, setSubscriptionOfferOptions] = useState<WizardSubscriptionOfferOption[]>([]);
 
   const fetchAdministratorValueId = useCallback(async () => {
     try {
@@ -116,6 +129,70 @@ export function AccountWizardModal({
   useEffect(() => {
     if (isOpen) fetchAdministratorValueId();
   }, [isOpen, fetchAdministratorValueId]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const lookupUrl = `/api/system-lookup-values?lookup_table_id=${SUBSCRIPTION_OFFER_TYPE_LOOKUP_ID}&language_id=${languageId}`;
+        const [lookupRes, offersRes] = await Promise.all([
+          fetch(lookupUrl),
+          fetch("/api/subscriptions-offers"),
+        ]);
+        const lookups = lookupRes.ok ? ((await lookupRes.json()) as { value_id: number; value_name: string }[]) : [];
+        const offersRaw = offersRes.ok ? ((await offersRes.json()) as unknown[]) : [];
+        const offers = Array.isArray(offersRaw)
+          ? (offersRaw as { subscription_offer_id: number; subscription_offer_name: string; subscription_offer_type: number; status: number }[]).filter(
+              (r) => Number(r.status) === 1
+            )
+          : [];
+
+        let merged: WizardSubscriptionOfferOption[];
+        if (Array.isArray(lookups) && lookups.length > 0) {
+          merged = lookups.map((row) => {
+            const offer = offers.find((o) => Number(o.subscription_offer_type) === Number(row.value_id));
+            if (offer) {
+              return {
+                subscription_offer_id: offer.subscription_offer_id,
+                subscription_offer_name: row.value_name ?? offer.subscription_offer_name,
+              };
+            }
+            return {
+              subscription_offer_id: 0,
+              subscription_offer_name: row.value_name ?? "",
+              disabled: true,
+              lookup_value_id: Number(row.value_id),
+            };
+          });
+        } else {
+          merged = offers.map((o) => ({
+            subscription_offer_id: o.subscription_offer_id,
+            subscription_offer_name: o.subscription_offer_name,
+          }));
+        }
+
+        if (cancelled) return;
+        setSubscriptionOfferOptions(merged);
+        setServiceOfficeForm((prev) => {
+          const stillValid = merged.some(
+            (o) => !o.disabled && o.subscription_offer_id === prev.subscription_offer_id && o.subscription_offer_id > 0
+          );
+          if (stillValid) return prev;
+          const first = merged.find((o) => !o.disabled && o.subscription_offer_id > 0);
+          return { ...prev, subscription_offer_id: first?.subscription_offer_id ?? 0 };
+        });
+      } catch {
+        if (!cancelled) {
+          setSubscriptionOfferOptions([]);
+          setServiceOfficeForm((prev) => ({ ...prev, subscription_offer_id: 0 }));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, languageId]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -185,8 +262,15 @@ export function AccountWizardModal({
         message: t("Please select the status."),
       };
     }
+    if (serviceOfficeForm.subscription_offer_id == null || serviceOfficeForm.subscription_offer_id <= 0) {
+      return {
+        valid: false,
+        firstInvalidFieldId: "subscription_offer_id",
+        message: t("Please select the subscription offer."),
+      };
+    }
     return { valid: true, firstInvalidFieldId: null, message: "" };
-  }, [serviceOfficeForm.service_office_name, serviceOfficeForm.status, t]);
+  }, [serviceOfficeForm.service_office_name, serviceOfficeForm.status, serviceOfficeForm.subscription_offer_id, t]);
 
   const validateTab2 = useCallback((): { valid: boolean; firstInvalidFieldId: string | null; message: string } => {
     if (!userForm.user_name?.trim()) {
@@ -503,6 +587,7 @@ export function AccountWizardModal({
                 editingOffice={null}
                 form={{ ...serviceOfficeForm, account_id: 0 }}
                 accounts={[]}
+                subscriptionOffers={subscriptionOfferOptions}
                 isSaving={false}
                 embedded
                 fixedAccountName={accountForm.account_name || undefined}

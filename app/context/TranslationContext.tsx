@@ -27,6 +27,7 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
   const [loadingTranslations, setLoadingTranslations] = useState(false);
 
   const fetchTranslations = useCallback(async () => {
+    setDictionary({});
     setLoadingTranslations(true);
     try {
       const res = await fetch(`/api/translations/public?languageId=${languageId}&_=${Date.now()}`, {

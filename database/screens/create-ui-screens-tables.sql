@@ -16,7 +16,6 @@ COMMENT ON TABLE ui_screens IS 'Application/business screens.';
 COMMENT ON COLUMN ui_screens.screen_name IS 'Screen name (max 100 chars).';
 COMMENT ON COLUMN ui_screens.screen_description IS 'Optional screen description (max 250 chars).';
 
--- Seed screens (screen_name = screen name)
 INSERT INTO ui_screens (screen_name, screen_description) VALUES
   ('User', NULL),
   ('Account', NULL),
@@ -29,7 +28,6 @@ INSERT INTO ui_screens (screen_name, screen_description) VALUES
   ('Working session entry', NULL)
 ON CONFLICT (screen_name) DO NOTHING;
 
--- ui_screen_translations: localized names and descriptions for screens
 CREATE TABLE ui_screen_translations (
   screen_id    BIGINT NOT NULL REFERENCES ui_screens(screen_id) ON DELETE CASCADE,
   language_id  BIGINT NOT NULL REFERENCES languages(id) ON DELETE CASCADE,
@@ -42,7 +40,6 @@ CREATE INDEX idx_ui_screen_translations_language_id ON ui_screen_translations(la
 
 COMMENT ON TABLE ui_screen_translations IS 'Localized screen names and descriptions.';
 
--- Seed Hebrew (language_id=2) translations
 WITH screens AS (SELECT screen_id, screen_name FROM ui_screens),
      seed(screen_name, he_name) AS (
        VALUES

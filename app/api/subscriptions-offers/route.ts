@@ -1,10 +1,32 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/app/lib/auth";
 import { getDbClient } from "@/database/accounts/db-client";
+import {
+  applySubscriptionOfferPriceChange,
+  fetchSubscriptionOfferWithCurrentPrice,
+  subscriptionOfferRowToJson,
+} from "@/app/lib/subscription-offer-prices";
 import { SUBSCRIPTIONS_OFFER_ACTIVE_TYPE_CONFLICT } from "@/database/subscriptions_offers/active-type-conflict-message";
 import type { CreateSubscriptionOfferInput } from "@/database/subscriptions_offers/types";
 
 export const dynamic = "force-dynamic";
+
+const LIST_QUERY = `
+  SELECT so.subscription_offer_id,
+         so.administrator_restricted_offer,
+         so.subscription_offer_name,
+         so.subscription_offer_type,
+         so.status,
+         so.creation_datetime,
+         so.updated_datetime,
+         p.subscription_offer_monthly_price,
+         p.offer_currency
+  FROM subscriptions_offers so
+  LEFT JOIN subscription_offer_prices p
+    ON p.subscription_offer_id = so.subscription_offer_id
+   AND p.price_end_datetime IS NULL
+  ORDER BY so.subscription_offer_id ASC
+`;
 
 export async function GET() {
   try {
@@ -17,20 +39,10 @@ export async function GET() {
     const client = getDbClient();
     await client.connect();
     try {
-      const res = await client.query(
-        `SELECT subscription_offer_id,
-                administrator_restricted_offer,
-                subscription_offer_name,
-                subscription_offer_type,
-                subscription_offer_monthly_price,
-                offer_currency,
-                status,
-                creation_datetime,
-                updated_datetime
-         FROM subscriptions_offers
-         ORDER BY subscription_offer_id ASC`
-      );
-      return NextResponse.json(res.rows);
+      const res = await client.query(LIST_QUERY);
+      return NextResponse.json(res.rows, {
+        headers: { "Cache-Control": "no-store, must-revalidate" },
+      });
     } finally {
       await client.end();
     }
@@ -102,27 +114,34 @@ export async function POST(request: Request) {
         }
       }
 
+      await client.query("BEGIN");
+
       const res = await client.query(
         `INSERT INTO subscriptions_offers (
            administrator_restricted_offer,
            subscription_offer_name,
            subscription_offer_type,
-           subscription_offer_monthly_price,
-           offer_currency,
            status
-         ) VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING *`,
-        [
-          body.administrator_restricted_offer,
-          name,
-          typeVal,
-          price,
-          currency,
-          Number(body.status),
-        ]
+         ) VALUES ($1, $2, $3, $4)
+         RETURNING subscription_offer_id`,
+        [body.administrator_restricted_offer, name, typeVal, Number(body.status)]
       );
-      return NextResponse.json(res.rows[0], { status: 201 });
+
+      const newId = Number(res.rows[0].subscription_offer_id);
+      await applySubscriptionOfferPriceChange(client, newId, price, currency);
+
+      const merged = await fetchSubscriptionOfferWithCurrentPrice(client, newId);
+      await client.query("COMMIT");
+      if (!merged) {
+        return NextResponse.json({ error: "Subscription offer not found after create" }, { status: 500 });
+      }
+      return NextResponse.json(subscriptionOfferRowToJson(merged as Record<string, unknown>), { status: 201 });
     } catch (err: unknown) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        /* ignore */
+      }
       const pgErr = err as { code?: string };
       if (pgErr.code === "23505") {
         return NextResponse.json({ error: SUBSCRIPTIONS_OFFER_ACTIVE_TYPE_CONFLICT }, { status: 409 });
