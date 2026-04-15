@@ -9,6 +9,7 @@ import { Sidebar, SidebarProvider, MobileMenuButton } from "@/app/components/sid
 import { ContractModal } from "@/database/contracts/ContractModal";
 import { ContractHourlyFeeModal } from "@/database/contract_user_fee/ContractHourlyFeeModal";
 import { ContractMilestonesModal } from "@/database/contract_milestones_data/ContractMilestonesModal";
+import { ContractSuccessMilestonesModal } from "@/database/contract_milestones_data_for_success/ContractSuccessMilestonesModal";
 import type { Contract, CreateContractInput } from "@/database/contracts/types";
 import type { ServiceOffice } from "@/database/Service_Offices/types";
 
@@ -23,6 +24,7 @@ function normalizeLookupName(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 const MILESTONE_CONTRACT_TYPE_IDS = new Set([0, 1]);
+const SUCCESS_CONTRACT_TYPE_ID = 4;
 
 function toDateString(val: string | Date | null | undefined): string {
   if (val == null || val === "") return "";
@@ -114,6 +116,7 @@ function ContractsContent() {
   const [isSaving, setIsSaving] = useState(false);
   const [hourlyFeeContract, setHourlyFeeContract] = useState<Contract | null>(null);
   const [milestonesContract, setMilestonesContract] = useState<Contract | null>(null);
+  const [successMilestonesContract, setSuccessMilestonesContract] = useState<Contract | null>(null);
   const [hourlyFeeCountByContractId, setHourlyFeeCountByContractId] = useState<Record<number, number>>({});
 
   const { t, refreshTranslations } = useTranslations();
@@ -628,6 +631,34 @@ function ContractsContent() {
                                 </svg>
                               </button>
                             )}
+                            {Number(contract.contract_type) === SUCCESS_CONTRACT_TYPE_ID && (
+                              <button
+                                type="button"
+                                onClick={() => setSuccessMilestonesContract(contract)}
+                                className="p-2 rounded-lg hover:bg-violet-50 dark:hover:bg-violet-950/30 text-slate-600 dark:text-slate-400 hover:text-violet-700 dark:hover:text-violet-300"
+                                title={t("Configure Success Milestones")}
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="18"
+                                  height="18"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M8 6h13" />
+                                  <path d="M8 12h13" />
+                                  <path d="M8 18h13" />
+                                  <path d="M3 6h.01" />
+                                  <path d="M3 12h.01" />
+                                  <path d="M3 18h.01" />
+                                </svg>
+                              </button>
+                            )}
                             <button
                               onClick={() => openCopyModal(contract)}
                               className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
@@ -700,6 +731,16 @@ function ContractsContent() {
         isOpen={milestonesContract != null}
         contract={milestonesContract}
         onClose={() => setMilestonesContract(null)}
+        notifyCreate={notifyCreate}
+        notifyUpdate={notifyUpdate}
+        notifyDelete={notifyDelete}
+        notifyError={notifyError}
+      />
+
+      <ContractSuccessMilestonesModal
+        isOpen={successMilestonesContract != null}
+        contract={successMilestonesContract}
+        onClose={() => setSuccessMilestonesContract(null)}
         notifyCreate={notifyCreate}
         notifyUpdate={notifyUpdate}
         notifyDelete={notifyDelete}

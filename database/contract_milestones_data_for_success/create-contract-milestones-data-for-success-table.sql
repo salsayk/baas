@@ -1,16 +1,22 @@
--- Create table: contract_milestones_data_for_success
--- Success milestones per contract: sequential 1..n per contract_id, typed Fixed (0) or Percentage (1).
+-- Recreate table: contract_milestones_data_for_success (from scratch)
 -- Run: node database/run-sql.mjs database/contract_milestones_data_for_success/create-contract-milestones-data-for-success-table.sql
 
-CREATE TABLE IF NOT EXISTS contract_milestones_data_for_success (
+DROP TRIGGER IF EXISTS trigger_validate_contract_milestone_success_seq_order ON contract_milestones_data_for_success;
+DROP TRIGGER IF EXISTS trigger_set_contract_milestone_success_seq_if_missing ON contract_milestones_data_for_success;
+DROP FUNCTION IF EXISTS validate_contract_milestone_success_seq_order();
+DROP FUNCTION IF EXISTS set_contract_milestone_success_seq_if_missing();
+DROP TABLE IF EXISTS contract_milestones_data_for_success;
+
+CREATE TABLE contract_milestones_data_for_success (
   contract_id BIGINT NOT NULL,
   milestone_sequential_number INTEGER NOT NULL,
   milestone_criteria VARCHAR(200) NOT NULL,
   milestone_due_date DATE,
   milestone_type SMALLINT NOT NULL,
-  milestone_amount NUMERIC(18,2) NOT NULL,
-  milestone_percentage NUMERIC(5,2) NOT NULL,
-  milestone_percentage_reference_figure_description NUMERIC(18,2),
+  milestone_amount NUMERIC(18,2),
+  milestone_percentage NUMERIC(5,2),
+  milestone_percentage_reference_figure NUMERIC(18,2),
+  milestone_percentage_reference_figure_description VARCHAR(200),
   min_payment_amount NUMERIC(18,2),
   max_payment_amount NUMERIC(18,2),
   progress_status SMALLINT DEFAULT 0,
@@ -22,12 +28,19 @@ CREATE TABLE IF NOT EXISTS contract_milestones_data_for_success (
 
   CONSTRAINT contract_milestones_data_for_success_pk
     PRIMARY KEY (contract_id, milestone_sequential_number),
+  CONSTRAINT contract_milestones_data_for_success_contract_fk
+    FOREIGN KEY (contract_id)
+    REFERENCES contracts(contract_id)
+    ON DELETE CASCADE,
   CONSTRAINT contract_milestones_data_for_success_seq_positive_chk
     CHECK (milestone_sequential_number >= 1),
   CONSTRAINT contract_milestones_data_for_success_type_chk
     CHECK (milestone_type IN (0, 1)),
   CONSTRAINT contract_milestones_data_for_success_pct_range_chk
-    CHECK (milestone_percentage >= 0 AND milestone_percentage <= 100),
+    CHECK (
+      milestone_percentage IS NULL
+      OR (milestone_percentage >= 0 AND milestone_percentage <= 100)
+    ),
   CONSTRAINT contract_milestones_data_for_success_min_max_payment_chk
     CHECK (
       min_payment_amount IS NULL
@@ -37,26 +50,24 @@ CREATE TABLE IF NOT EXISTS contract_milestones_data_for_success (
   CONSTRAINT contract_milestones_data_for_success_ref_figure_chk
     CHECK (
       (milestone_type <> 1)
-      OR (milestone_percentage_reference_figure_description IS NOT NULL)
+      OR (
+        milestone_percentage_reference_figure IS NOT NULL
+        AND milestone_percentage_reference_figure_description IS NOT NULL
+        AND btrim(milestone_percentage_reference_figure_description) <> ''
+      )
+    ),
+  CONSTRAINT contract_milestones_data_for_success_type_amount_pct_chk
+    CHECK (
+      (milestone_type = 0 AND milestone_amount IS NOT NULL AND milestone_percentage IS NULL)
+      OR (milestone_type = 1 AND milestone_amount IS NULL AND milestone_percentage IS NOT NULL)
     )
 );
 
 COMMENT ON COLUMN contract_milestones_data_for_success.milestone_type IS '0 = Fixed, 1 = Percentage';
+COMMENT ON COLUMN contract_milestones_data_for_success.milestone_percentage_reference_figure IS
+  'Reference figure value for percentage milestones; required when milestone_type=1.';
 COMMENT ON COLUMN contract_milestones_data_for_success.milestone_percentage_reference_figure_description IS
-  'Numeric reference figure for percentage milestones (milestone_type=1); NULL when milestone_type=0 (Fixed).';
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'contract_milestones_data_for_success_contract_fk'
-  ) THEN
-    ALTER TABLE contract_milestones_data_for_success
-      ADD CONSTRAINT contract_milestones_data_for_success_contract_fk
-      FOREIGN KEY (contract_id)
-      REFERENCES contracts(contract_id)
-      ON DELETE CASCADE;
-  END IF;
-END $$;
+  'Reference figure description (max 200 chars); required when milestone_type=1.';
 
 CREATE OR REPLACE FUNCTION set_contract_milestone_success_seq_if_missing()
 RETURNS TRIGGER AS $$
@@ -72,7 +83,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trigger_set_contract_milestone_success_seq_if_missing ON contract_milestones_data_for_success;
 CREATE TRIGGER trigger_set_contract_milestone_success_seq_if_missing
   BEFORE INSERT ON contract_milestones_data_for_success
   FOR EACH ROW
@@ -98,7 +108,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trigger_validate_contract_milestone_success_seq_order ON contract_milestones_data_for_success;
 CREATE TRIGGER trigger_validate_contract_milestone_success_seq_order
   BEFORE INSERT ON contract_milestones_data_for_success
   FOR EACH ROW
