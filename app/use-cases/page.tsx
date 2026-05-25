@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Sidebar, SidebarProvider, MobileMenuButton } from "@/app/components/sidebar";
+
+const OPENAI_KEY_STORAGE = "ai-playground-openai-key";
 
 interface RepositoryInfo {
   name: string;
@@ -30,48 +32,177 @@ interface SummaryResult {
   status: string;
 }
 
+function OpenAiKeyModal({
+  isOpen,
+  onSave,
+}: {
+  isOpen: boolean;
+  onSave: (key: string) => void;
+}) {
+  const [value, setValue] = useState("");
+
+  useEffect(() => {
+    if (isOpen) setValue("");
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    onSave(trimmed);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div
+        className="absolute inset-0 backdrop-blur-sm"
+        style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+        aria-hidden="true"
+      />
+      <div className="relative w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-2xl p-6 border border-slate-200 dark:border-slate-700">
+        <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">OpenAI API key required</h2>
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+          <code className="text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">OPENAI_API_KEY</code> is defined in{" "}
+          <code className="text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">.env.local</code> but has no value. Enter your key to run the summary. It is stored only in this browser session.
+        </p>
+        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <div>
+            <label htmlFor="openAiKey" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              OpenAI API key
+            </label>
+            <input
+              id="openAiKey"
+              type="password"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="sk-..."
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+              autoComplete="off"
+              autoFocus
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={!value.trim()}
+            className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:from-purple-600 hover:to-pink-700 transition-all"
+          >
+            Continue
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function UseCasesContent() {
   const [mounted, setMounted] = useState(false);
-  const [apiKey, setApiKey] = useState("");
   const [githubUrl, setGithubUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<SummaryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [requiresUserOpenAiKey, setRequiresUserOpenAiKey] = useState(false);
+  const [userOpenAiKey, setUserOpenAiKey] = useState<string | null>(null);
+  const [showOpenAiModal, setShowOpenAiModal] = useState(false);
+
+  /** Always resolve fresh on submit so we do not rely on a race with the mount fetch. */
+  const fetchPlaygroundConfig = useCallback(async (): Promise<boolean> => {
+    const res = await fetch("/api/github-summarizer/playground-config", {
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      throw new Error("Could not load playground configuration.");
+    }
+    const data = await res.json();
+    const needsKey = Boolean(data.requiresUserOpenAiKey);
+    setRequiresUserOpenAiKey(needsKey);
+    return needsKey;
+  }, []);
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    fetchPlaygroundConfig().catch(() => {
+      // Submit will refetch; avoid blocking the page.
+    });
+  }, [fetchPlaygroundConfig]);
+
+  const runAnalysis = useCallback(
+    async (openAiKeyOverride?: string) => {
+      const url = githubUrl.trim();
+      if (!url) return;
+
+      const keyForRequest =
+        openAiKeyOverride?.trim() ||
+        userOpenAiKey?.trim() ||
+        undefined;
+
+      setIsLoading(true);
+      setResult(null);
+      setError(null);
+
+      try {
+        const body: { githubUrl: string; openAiApiKey?: string } = { githubUrl: url };
+        if (requiresUserOpenAiKey && keyForRequest) {
+          body.openAiApiKey = keyForRequest;
+        }
+
+        const response = await fetch("/api/github-summarizer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          const message = data.error || "An error occurred";
+          const authFailed =
+            response.status === 401 ||
+            response.status === 503 ||
+            /api key/i.test(message) ||
+            data?.code === "invalid_api_key";
+          if (authFailed && requiresUserOpenAiKey) {
+            sessionStorage.removeItem(OPENAI_KEY_STORAGE);
+            setUserOpenAiKey(null);
+            setShowOpenAiModal(true);
+          }
+          setError(message);
+        } else {
+          setResult(data);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to connect to API");
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [githubUrl, requiresUserOpenAiKey, userOpenAiKey]
+  );
+
+  const handleOpenAiKeySave = (key: string) => {
+    sessionStorage.setItem(OPENAI_KEY_STORAGE, key);
+    setUserOpenAiKey(key);
+    setShowOpenAiModal(false);
+    void runAnalysis(key);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!apiKey.trim() || !githubUrl.trim()) return;
 
-    setIsLoading(true);
-    setResult(null);
-    setError(null);
+    if (!githubUrl.trim()) return;
 
     try {
-      const response = await fetch("/api/github-summarizer", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey.trim(),
-        },
-        body: JSON.stringify({ githubUrl: githubUrl.trim() }),
-      });
+      const needsKey = await fetchPlaygroundConfig();
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "An error occurred");
-      } else {
-        setResult(data);
+      if (needsKey && !userOpenAiKey?.trim()) {
+        setShowOpenAiModal(true);
+        return;
       }
+
+      await runAnalysis(needsKey ? userOpenAiKey ?? undefined : undefined);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to connect to API");
-    } finally {
-      setIsLoading(false);
+      setError(err instanceof Error ? err.message : "Could not load playground configuration.");
     }
   };
 
@@ -88,35 +219,50 @@ function UseCasesContent() {
 
   return (
     <div className="app-layout-with-sidebar min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-row">
+      <OpenAiKeyModal isOpen={showOpenAiModal} onSave={handleOpenAiKeySave} />
       <Sidebar />
 
       <main className="flex-1 flex flex-col min-w-0">
-        {/* Top Bar */}
-        <header className="h-14 lg:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
+        <header className="h-14 lg:h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <MobileMenuButton />
             <div className="flex items-center gap-2 text-sm">
               <span className="text-slate-400 hidden sm:inline">Pages</span>
               <span className="text-slate-300 hidden sm:inline">/</span>
-              <span className="text-slate-700 font-medium">Use Cases</span>
+              <span className="text-slate-700 dark:text-slate-200 font-medium">AI Playground</span>
             </div>
           </div>
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-sm font-medium text-emerald-700">Operational</span>
+            <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Operational</span>
           </div>
         </header>
 
-        {/* Page Content */}
         <div className="flex-1 p-4 lg:p-8 overflow-auto">
           <div className="max-w-4xl mx-auto">
-            <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 mb-2">Use Cases</h1>
-            <p className="text-slate-500 mb-6 lg:mb-8">
-              Explore and test our AI-powered APIs with real-world use cases.
+            <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">AI Playground</h1>
+            <p className="text-slate-500 dark:text-slate-400 mb-6 lg:mb-8">
+              Try AI-powered tools while signed in — no API key required on this screen.
             </p>
 
-            {/* GitHub Summarizer Form */}
-            <div className="bg-white rounded-xl lg:rounded-2xl border border-slate-200 p-4 lg:p-8 mb-6 lg:mb-8">
+            {requiresUserOpenAiKey && userOpenAiKey && (
+              <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                <span>Using your session OpenAI key.</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    sessionStorage.removeItem(OPENAI_KEY_STORAGE);
+                    setUserOpenAiKey(null);
+                    setShowOpenAiModal(true);
+                  }}
+                  className="text-purple-600 dark:text-purple-400 font-medium hover:underline"
+                >
+                  Change key
+                </button>
+              </div>
+            )}
+
+            <div className="bg-white dark:bg-slate-900 rounded-xl lg:rounded-2xl border border-slate-200 dark:border-slate-700 p-4 lg:p-8 mb-6 lg:mb-8">
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-2.5 lg:p-3 rounded-lg lg:rounded-xl bg-gradient-to-br from-purple-500 to-pink-600">
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="white" className="lg:w-6 lg:h-6">
@@ -124,32 +270,14 @@ function UseCasesContent() {
                   </svg>
                 </div>
                 <div>
-                  <h2 className="text-lg lg:text-xl font-semibold text-slate-900">GitHub Repository Summarizer</h2>
-                  <p className="text-sm text-slate-500">Get an AI-powered summary of any public GitHub repository</p>
+                  <h2 className="text-lg lg:text-xl font-semibold text-slate-900 dark:text-slate-100">GitHub Repository Summarizer</h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Get an AI-powered summary of any public GitHub repository</p>
                 </div>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4 lg:space-y-6">
                 <div>
-                  <label htmlFor="apiKey" className="block text-sm font-medium text-slate-700 mb-2">
-                    API Key
-                  </label>
-                  <input
-                    id="apiKey"
-                    type="text"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Enter your API key"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900 placeholder-slate-400 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
-                    autoComplete="off"
-                  />
-                  <p className="mt-2 text-xs text-slate-500">
-                    Your API key from the dashboard
-                  </p>
-                </div>
-
-                <div>
-                  <label htmlFor="githubUrl" className="block text-sm font-medium text-slate-700 mb-2">
+                  <label htmlFor="githubUrl" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     GitHub Repository URL
                   </label>
                   <input
@@ -158,16 +286,16 @@ function UseCasesContent() {
                     value={githubUrl}
                     onChange={(e) => setGithubUrl(e.target.value)}
                     placeholder="https://github.com/owner/repository"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
                   />
-                  <p className="mt-2 text-xs text-slate-500">
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                     Enter a public GitHub repository URL
                   </p>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={!apiKey.trim() || !githubUrl.trim() || isLoading}
+                  disabled={!githubUrl.trim() || isLoading}
                   className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:from-purple-600 hover:to-pink-700 transition-all shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40"
                 >
                   {isLoading ? (
@@ -187,9 +315,8 @@ function UseCasesContent() {
               </form>
             </div>
 
-            {/* Error Display */}
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-xl lg:rounded-2xl p-4 lg:p-6 mb-6 lg:mb-8">
+              <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl lg:rounded-2xl p-4 lg:p-6 mb-6 lg:mb-8">
                 <div className="flex items-start gap-3">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-500 mt-0.5 flex-shrink-0">
                     <circle cx="12" cy="12" r="10"/>
@@ -197,32 +324,30 @@ function UseCasesContent() {
                     <line x1="12" x2="12.01" y1="16" y2="16"/>
                   </svg>
                   <div>
-                    <h3 className="font-semibold text-red-800">Error</h3>
-                    <p className="text-sm text-red-600 mt-1">{error}</p>
+                    <h3 className="font-semibold text-red-800 dark:text-red-200">Error</h3>
+                    <p className="text-sm text-red-600 dark:text-red-300 mt-1">{error}</p>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Results Display */}
             {result && (
               <div className="space-y-4 lg:space-y-6">
-                {/* Repository Info */}
-                <div className="bg-white rounded-xl lg:rounded-2xl border border-slate-200 p-4 lg:p-6">
-                  <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <div className="bg-white dark:bg-slate-900 rounded-xl lg:rounded-2xl border border-slate-200 dark:border-slate-700 p-4 lg:p-6">
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400">
                       <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
                       <path d="M9 18c-4.51 2-5-2-7-2"/>
                     </svg>
                     Repository Information
                   </h3>
-                  
+
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-4">
-                    <a 
-                      href={result.repository.url} 
-                      target="_blank" 
+                    <a
+                      href={result.repository.url}
+                      target="_blank"
                       rel="noopener noreferrer"
-                      className="col-span-2 lg:col-span-4 text-base lg:text-lg font-medium text-purple-600 hover:text-purple-700 flex items-center gap-2 truncate"
+                      className="col-span-2 lg:col-span-4 text-base lg:text-lg font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 flex items-center gap-2 truncate"
                     >
                       <span className="truncate">{result.repository.fullName}</span>
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
@@ -231,45 +356,45 @@ function UseCasesContent() {
                         <line x1="10" x2="21" y1="14" y2="3"/>
                       </svg>
                     </a>
-                    
-                    <div className="bg-slate-50 rounded-lg lg:rounded-xl p-2.5 lg:p-3">
+
+                    <div className="bg-slate-50 dark:bg-slate-800 rounded-lg lg:rounded-xl p-2.5 lg:p-3">
                       <p className="text-xs text-slate-500 mb-1">Stars</p>
-                      <p className="font-semibold text-slate-900 flex items-center gap-1 text-sm lg:text-base">
+                      <p className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1 text-sm lg:text-base">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="text-amber-400">
                           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                         </svg>
                         {result.repository.stars.toLocaleString()}
                       </p>
                     </div>
-                    
-                    <div className="bg-slate-50 rounded-lg lg:rounded-xl p-2.5 lg:p-3">
+
+                    <div className="bg-slate-50 dark:bg-slate-800 rounded-lg lg:rounded-xl p-2.5 lg:p-3">
                       <p className="text-xs text-slate-500 mb-1">Forks</p>
-                      <p className="font-semibold text-slate-900 text-sm lg:text-base">{result.repository.forks.toLocaleString()}</p>
+                      <p className="font-semibold text-slate-900 dark:text-slate-100 text-sm lg:text-base">{result.repository.forks.toLocaleString()}</p>
                     </div>
-                    
-                    <div className="bg-slate-50 rounded-lg lg:rounded-xl p-2.5 lg:p-3">
+
+                    <div className="bg-slate-50 dark:bg-slate-800 rounded-lg lg:rounded-xl p-2.5 lg:p-3">
                       <p className="text-xs text-slate-500 mb-1">Language</p>
-                      <p className="font-semibold text-slate-900 text-sm lg:text-base truncate">{result.repository.language || "N/A"}</p>
+                      <p className="font-semibold text-slate-900 dark:text-slate-100 text-sm lg:text-base truncate">{result.repository.language || "N/A"}</p>
                     </div>
-                    
-                    <div className="bg-slate-50 rounded-lg lg:rounded-xl p-2.5 lg:p-3">
+
+                    <div className="bg-slate-50 dark:bg-slate-800 rounded-lg lg:rounded-xl p-2.5 lg:p-3">
                       <p className="text-xs text-slate-500 mb-1">Updated</p>
-                      <p className="font-semibold text-slate-900 text-xs lg:text-sm">
+                      <p className="font-semibold text-slate-900 dark:text-slate-100 text-xs lg:text-sm">
                         {new Date(result.repository.updatedAt).toLocaleDateString()}
                       </p>
                     </div>
                   </div>
 
                   {result.repository.description && (
-                    <p className="text-sm text-slate-600 mb-4">{result.repository.description}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">{result.repository.description}</p>
                   )}
 
                   {result.repository.topics.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {result.repository.topics.map((topic) => (
-                        <span 
-                          key={topic} 
-                          className="px-2 lg:px-2.5 py-1 text-xs font-medium bg-purple-50 text-purple-700 rounded-full"
+                        <span
+                          key={topic}
+                          className="px-2 lg:px-2.5 py-1 text-xs font-medium bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded-full"
                         >
                           {topic}
                         </span>
@@ -278,27 +403,24 @@ function UseCasesContent() {
                   )}
                 </div>
 
-                {/* AI Analysis */}
-                <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl lg:rounded-2xl border border-purple-100 p-4 lg:p-6">
-                  <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/40 dark:to-pink-950/40 rounded-xl lg:rounded-2xl border border-purple-100 dark:border-purple-900 p-4 lg:p-6">
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-500">
                       <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
                     </svg>
                     AI-Generated Analysis
                   </h3>
-                  
-                  {/* Purpose */}
+
                   <div className="mb-4 lg:mb-6">
-                    <h4 className="text-sm font-semibold text-purple-800 mb-2">Purpose</h4>
-                    <p className="text-slate-700 text-sm leading-relaxed">{result.analysis.purpose}</p>
+                    <h4 className="text-sm font-semibold text-purple-800 dark:text-purple-300 mb-2">Purpose</h4>
+                    <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">{result.analysis.purpose}</p>
                   </div>
 
-                  {/* Key Features */}
                   <div className="mb-4 lg:mb-6">
-                    <h4 className="text-sm font-semibold text-purple-800 mb-2">Key Features</h4>
+                    <h4 className="text-sm font-semibold text-purple-800 dark:text-purple-300 mb-2">Key Features</h4>
                     <ul className="space-y-2">
                       {result.analysis.features.map((feature, index) => (
-                        <li key={index} className="flex items-start gap-2 text-sm text-slate-700">
+                        <li key={index} className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-500 mt-0.5 flex-shrink-0">
                             <polyline points="20 6 9 17 4 12"/>
                           </svg>
@@ -308,14 +430,13 @@ function UseCasesContent() {
                     </ul>
                   </div>
 
-                  {/* Tech Stack */}
                   <div className="mb-4 lg:mb-6">
-                    <h4 className="text-sm font-semibold text-purple-800 mb-2">Technology Stack</h4>
+                    <h4 className="text-sm font-semibold text-purple-800 dark:text-purple-300 mb-2">Technology Stack</h4>
                     <div className="flex flex-wrap gap-2">
                       {result.analysis.techStack.map((tech, index) => (
-                        <span 
-                          key={index} 
-                          className="px-2.5 lg:px-3 py-1 lg:py-1.5 text-xs font-medium bg-white text-purple-700 rounded-full border border-purple-200"
+                        <span
+                          key={index}
+                          className="px-2.5 lg:px-3 py-1 lg:py-1.5 text-xs font-medium bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-300 rounded-full border border-purple-200 dark:border-purple-800"
                         >
                           {tech}
                         </span>
@@ -323,44 +444,41 @@ function UseCasesContent() {
                     </div>
                   </div>
 
-                  {/* Target Audience */}
                   <div className="mb-4 lg:mb-6">
-                    <h4 className="text-sm font-semibold text-purple-800 mb-2">Target Audience</h4>
-                    <p className="text-slate-700 text-sm leading-relaxed">{result.analysis.targetAudience}</p>
+                    <h4 className="text-sm font-semibold text-purple-800 dark:text-purple-300 mb-2">Target Audience</h4>
+                    <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">{result.analysis.targetAudience}</p>
                   </div>
 
-                  {/* Summary */}
-                  <div className="pt-4 border-t border-purple-200">
-                    <h4 className="text-sm font-semibold text-purple-800 mb-2">Summary</h4>
-                    <p className="text-slate-700 text-sm whitespace-pre-wrap leading-relaxed">{result.analysis.summary}</p>
+                  <div className="pt-4 border-t border-purple-200 dark:border-purple-800">
+                    <h4 className="text-sm font-semibold text-purple-800 dark:text-purple-300 mb-2">Summary</h4>
+                    <p className="text-slate-700 dark:text-slate-300 text-sm whitespace-pre-wrap leading-relaxed">{result.analysis.summary}</p>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* How It Works */}
-            <div className="bg-white rounded-xl lg:rounded-2xl border border-slate-200 p-4 lg:p-6 mt-6 lg:mt-8">
-              <h3 className="text-lg font-semibold text-slate-900 mb-4">How It Works</h3>
+            <div className="bg-white dark:bg-slate-900 rounded-xl lg:rounded-2xl border border-slate-200 dark:border-slate-700 p-4 lg:p-6 mt-6 lg:mt-8">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">How It Works</h3>
               <div className="grid sm:grid-cols-3 gap-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-sm flex-shrink-0">1</div>
+                  <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center text-purple-600 dark:text-purple-300 font-bold text-sm flex-shrink-0">1</div>
                   <div>
-                    <p className="font-medium text-slate-900">Authenticate</p>
-                    <p className="text-sm text-slate-500">Enter your valid API key</p>
+                    <p className="font-medium text-slate-900 dark:text-slate-100">Sign in</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Use your Google account — no API key on this page</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-sm flex-shrink-0">2</div>
+                  <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center text-purple-600 dark:text-purple-300 font-bold text-sm flex-shrink-0">2</div>
                   <div>
-                    <p className="font-medium text-slate-900">Provide URL</p>
-                    <p className="text-sm text-slate-500">Enter a GitHub repo URL</p>
+                    <p className="font-medium text-slate-900 dark:text-slate-100">Provide URL</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Enter a public GitHub repository URL</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-sm flex-shrink-0">3</div>
+                  <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center text-purple-600 dark:text-purple-300 font-bold text-sm flex-shrink-0">3</div>
                   <div>
-                    <p className="font-medium text-slate-900">Get Summary</p>
-                    <p className="text-sm text-slate-500">AI analyzes and summarizes</p>
+                    <p className="font-medium text-slate-900 dark:text-slate-100">Get Summary</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">AI analyzes and summarizes the repo</p>
                   </div>
                 </div>
               </div>

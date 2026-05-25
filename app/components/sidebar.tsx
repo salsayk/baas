@@ -51,7 +51,7 @@ const navItems: NavItem[] = [
   { name: "Language Labels", icon: "file-text", href: "/language-labels" },
   { name: "Screens", icon: "layout", href: "/screens" },
   { name: "API Playground", icon: "code", href: "/playground", hidden: true },
-  { name: "Use Cases", icon: "sparkles", href: "/use-cases", hidden: true },
+  { name: "AI Playground", icon: "sparkles", href: "/use-cases", hidden: false },
   { name: "Billing", icon: "credit-card", href: "/billing", hidden: true },
   { name: "Documentation", icon: "file-text", href: "https://docs.example.com", external: true, hidden: true },
   { name: "Timese MCP", icon: "plug", href: "https://mcp.example.com", external: true, hidden: true },

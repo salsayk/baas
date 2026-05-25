@@ -20,10 +20,20 @@ const summarySchema = z.object({
 export type SummaryOutput = z.infer<typeof summarySchema>;
 
 // Generate summary using LangChain and OpenAI with structured output
-export async function generateSummary(repoInfo: GitHubRepoInfo, readmeContent: string | null): Promise<SummaryOutput> {
+export async function generateSummary(
+  repoInfo: GitHubRepoInfo,
+  readmeContent: string | null,
+  openAiApiKey?: string
+): Promise<SummaryOutput> {
+  const apiKey = openAiApiKey?.trim() || process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error('OpenAI API key is not configured.');
+  }
+
   const model = new ChatOpenAI({
     modelName: 'gpt-4o-mini',
     temperature: 0,
+    apiKey,
   });
 
   const parser = StructuredOutputParser.fromZodSchema(summarySchema);

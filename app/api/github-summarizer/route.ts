@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/app/lib/auth";
+import { getOpenAiEnvStatus, resolveOpenAiKeyForRequest } from "@/app/lib/openai-env";
 import { getDbClient } from "@/database/accounts/db-client";
 import { generateSummary } from "./chain";
 import { parseGitHubUrl, fetchAllRepoData } from "@/app/lib/githubUtils";
@@ -99,17 +101,58 @@ export async function GET(request: Request) {
   }
 }
 
+type PostAuth =
+  | { mode: "api_key"; keyId: string }
+  | { mode: "session" };
+
+async function resolvePostAuth(request: Request): Promise<
+  | { auth: PostAuth; error: null }
+  | { auth: null; error: NextResponse }
+> {
+  const headerKey = request.headers.get("x-api-key")?.trim();
+  if (headerKey) {
+    const validation = await validateApiKeyAndCheckLimit(request);
+    if (!validation.valid) {
+      return {
+        auth: null,
+        error: NextResponse.json(
+          { error: validation.error },
+          { status: validation.statusCode || 401 }
+        ),
+      };
+    }
+    return { auth: { mode: "api_key", keyId: validation.keyId! }, error: null };
+  }
+
+  const { user, error: authError } = await getAuthenticatedUser();
+  if (authError) return { auth: null, error: authError };
+  if (!user) {
+    return {
+      auth: null,
+      error: NextResponse.json(
+        { error: "Missing API key. Please provide x-api-key header or sign in." },
+        { status: 401 }
+      ),
+    };
+  }
+
+  return { auth: { mode: "session" }, error: null };
+}
+
+function resolveOpenAiApiKey(body: { openAiApiKey?: unknown }, allowSession: boolean): string | null {
+  if (!allowSession) {
+    const env = process.env.OPENAI_API_KEY?.trim();
+    return env || null;
+  }
+  const fromBody = typeof body.openAiApiKey === "string" ? body.openAiApiKey : undefined;
+  return resolveOpenAiKeyForRequest(fromBody);
+}
+
 // POST - Summarize GitHub repository
 export async function POST(request: Request) {
   try {
-    // Validate API key and check limits
-    const validation = await validateApiKeyAndCheckLimit(request);
-    if (!validation.valid) {
-      return NextResponse.json(
-        { error: validation.error },
-        { status: validation.statusCode || 401 }
-      );
-    }
+    const { auth, error: authResolveError } = await resolvePostAuth(request);
+    if (authResolveError) return authResolveError;
 
     const body = await request.json();
 
@@ -142,20 +185,26 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if OpenAI API key is configured
-    if (!process.env.OPENAI_API_KEY) {
+    const openAiKey = resolveOpenAiApiKey(body, auth!.mode === "session");
+    if (!openAiKey) {
+      const { requiresUserOpenAiKey, openaiKeyDefined } = getOpenAiEnvStatus();
       return NextResponse.json(
-        { error: 'OpenAI API key not configured. Please set OPENAI_API_KEY in your environment variables.' },
+        {
+          error:
+            auth!.mode === "session" && requiresUserOpenAiKey
+              ? "OPENAI_API_KEY is set in .env.local but has no value. Enter your key in the dialog."
+              : auth!.mode === "session" && !openaiKeyDefined
+                ? "OPENAI_API_KEY is not set in .env.local. Add OPENAI_API_KEY=your-key to your environment."
+                : "OpenAI API key not configured. Please set OPENAI_API_KEY in your environment variables.",
+        },
         { status: 503 }
       );
     }
 
-    // Generate summary using LangChain and OpenAI with structured output
-    const analysis = await generateSummary(repoInfo, readme);
+    const analysis = await generateSummary(repoInfo, readme, openAiKey);
 
-    // Increment usage count AFTER successful processing
-    if (validation.keyId) {
-      await incrementApiKeyUsage(validation.keyId);
+    if (auth!.mode === "api_key") {
+      await incrementApiKeyUsage(auth.keyId);
     }
 
     // Calculate language percentages

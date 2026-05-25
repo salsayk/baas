@@ -31,7 +31,7 @@ export function TryItOut() {
       return
     }
 
-    // Authenticated - redirect to Use Cases page
+    // Authenticated - redirect to AI Playground
     router.push("/use-cases")
   }
 
@@ -111,7 +111,7 @@ export function TryItOut() {
                 </form>
 
                 <p className="mt-4 text-xs text-muted-foreground text-center">
-                  {session ? "Click to analyze in the Use Cases page" : "Sign in to start analyzing repositories"}
+                  {session ? "Click to analyze in the AI Playground" : "Sign in to start analyzing repositories"}
                 </p>
               </div>
             </div>

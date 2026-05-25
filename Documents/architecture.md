@@ -276,7 +276,7 @@ Milestone totals validated in `app/lib/contract-milestones-aggregate-validation.
 | `/language-labels` | `app/language-labels/page.tsx` | Translation label editor |
 | `/screens` | `app/screens/page.tsx` | UI screens registry + permissions |
 | `/playground` | `app/playground/page.tsx` | API / LangChain playground (sidebar: hidden) |
-| `/use-cases` | `app/use-cases/page.tsx` | Use-case demos (sidebar: hidden) |
+| `/use-cases` | `app/use-cases/page.tsx` | **AI Playground** — GitHub summarizer (signed-in; no API key; optional user OpenAI key if env unset) |
 | `/protected` | `app/protected/page.tsx` | Sample protected page |
 
 **Planned / stub routes (in sidebar or proxy, no `page.tsx` yet):** `/billing`, `/settings`.
@@ -367,8 +367,9 @@ Milestone totals validated in `app/lib/contract-milestones-aggregate-validation.
 | **API keys** | GET, POST | `/api/keys` | |
 | | GET, PATCH, DELETE | `/api/keys/[id]` | |
 | | POST | `/api/keys/validate` | |
-| **GitHub summarizer** | GET, POST | `/api/github-summarizer` | LangChain + OpenAI (optional) |
-| | GET | `/api/github-summarizer/demo` | Demo endpoint |
+| **GitHub summarizer** | GET, POST | `/api/github-summarizer` | LangChain + OpenAI; `x-api-key` **or** signed-in session (playground) |
+| | GET | `/api/github-summarizer/playground-config` | `{ openaiKeyDefined, openaiConfigured, requiresUserOpenAiKey }` — popup when key is declared in env but empty |
+| | GET | `/api/github-summarizer/demo` | Demo endpoint (rate-limited, no session) |
 
 ### 6.3 Server-side helpers (`app/lib/`)
 
