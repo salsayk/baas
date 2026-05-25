@@ -1,294 +1,577 @@
 # BaaS (Timese) – Application Architecture
 
-> **Purpose:** Single source of truth for architecture, tech stack, data model, and flows.  
+> **Purpose:** Single source of truth for architecture, tech stack, data model, API, components, and flows.  
 > **Audience:** New team members and contributors.  
-> **Maintenance:** Update this document at the end of every significant change (see [Cursor rule](#cursor-rule) below).
+> **Interactive view:** Open [`architecture.html`](./architecture.html) in a browser for diagrams and a visual overview.  
+> **Maintenance:** Update this document at the end of every significant change (see [§11 Cursor rule](#11-cursor-rule-updating-this-document)).
 
 ---
 
-## 1. Application Overview
+## Table of contents
 
-**Name:** BaaS (Timese – Bill Management for SMBs)  
-**Type:** Full-stack web application for managing service offices, customers, projects, contracts, and related entities.  
-**Stack:** Next.js (App Router), React, TypeScript, PostgreSQL, NextAuth.
-
-The app is multi-tenant at the **account** level: each logged-in user (Google OAuth) owns one or more **accounts**. Each account has **service offices**, and each service office has **customers**, **projects**, **contracts**, **subcontractors**, and **service office users**. Data access is enforced so users only see data for accounts they own (via `accounts.user_id`).
-
----
-
-## 2. Technologies Used
-
-| Layer | Technology | Version / Notes |
-|-------|------------|-----------------|
-| **Runtime** | Node.js | Via Next.js |
-| **Framework** | Next.js | 16.1.1 (App Router) |
-| **UI** | React | 19.2.3 |
-| **Language** | TypeScript | 5.9.x |
-| **Styling** | Tailwind CSS | 4.x |
-| **UI Components** | Radix UI, Shadcn-style patterns | @radix-ui/react-slot, cva |
-| **Auth** | NextAuth.js | 4.24.x (Google OAuth, JWT session) |
-| **Database** | PostgreSQL | Via `pg` 8.18.x |
-| **Email** | Nodemailer, Resend | Optional (verification, etc.) |
-| **AI / Playground** | LangChain, OpenAI | @langchain/*, optional |
-| **Fonts** | Geist, Geist Mono | next/font |
-
-- **Proxy (request boundary):** Next.js 16 uses `proxy.ts` (not `middleware.ts`) for the network boundary in front of the app.
-- **Database config:** Loaded from `database/db-config.json` (PostgreSQL connection; not committed; see `.env.local` for secrets).
-- **App feature settings:** `config/app-feature-settings.json` (committed). `EnableEmailVerification` (default `true`) controls whether `POST /api/account/verify-email/send` actually sends email via SMTP/Resend; when `false`, the verification code is still stored but no email is sent. The UI reads the same flag via `GET /api/app-feature-settings` and skips the verification modal and proceeds with save/create when it is `false`.
+1. [Application overview](#1-application-overview)  
+2. [Technologies used](#2-technologies-used)  
+3. [High-level architecture](#3-high-level-architecture)  
+4. [System flows](#4-system-flows)  
+5. [Frontend](#5-frontend)  
+6. [Backend (API)](#6-backend-api)  
+7. [Database](#7-database)  
+8. [Security](#8-security)  
+9. [Components catalog](#9-components-catalog)  
+10. [Repository layout](#10-repository-layout)  
+11. [Cursor rule (updating this document)](#11-cursor-rule-updating-this-document)
 
 ---
 
-## 3. High-Level Architecture
+## 1. Application overview
+
+| Item | Detail |
+|------|--------|
+| **Product name** | BaaS / **Timese** – Bill Management for SMBs |
+| **Type** | Full-stack multi-tenant web application |
+| **Primary users** | Account owners (Google sign-in) who manage service offices and business data |
+| **Secondary actors** | Service office users (employees/subcontractors) with scoped data access |
+
+**Business domain:** Service offices operate under **accounts**. Each service office has **customers**, **projects**, **contracts**, **subcontractors**, **subscription plans**, and **service office users**. Contracts support multiple billing models (milestones, hourly fees, success milestones). The app also provides **i18n** (languages, screen labels, auto-translate) and **admin** screens (system lookups, UI screens, API keys, playground).
+
+**Tenancy model:** Multi-tenant at the **account** level. The logged-in app user (`users`) owns one or more `accounts`. All operational data hangs off `service_offices` → `account_id` → `accounts.user_id`. API routes enforce access by joining through `accounts` so users never see another tenant’s rows.
+
+---
+
+## 2. Technologies used
+
+Technologies are grouped by layer. Versions reflect `package.json` unless noted.
+
+### 2.1 Frontend
+
+| Technology | Version / role |
+|------------|----------------|
+| **React** | 19.2.3 – UI library; client components for interactive pages and modals |
+| **Next.js App Router** | 16.1.1 – Routing, RSC root layout, API co-location under `app/api/` |
+| **TypeScript** | 5.9.x – Typing across app, API, and `database/*` feature modules |
+| **Tailwind CSS** | 4.x (`@tailwindcss/postcss`) – Utility-first styling |
+| **next/font** | Geist Sans & Geist Mono – Optimized web fonts |
+| **next-themes** | 0.4.6 – Theme persistence (used with custom `ThemeProvider`) |
+| **Radix UI** | `@radix-ui/react-slot` – Primitive for composable UI |
+| **class-variance-authority** | 0.7.x – Variant styling for Shadcn-style `components/ui/*` |
+| **tailwind-merge** | 3.4.x – Class name merging in UI helpers |
+| **lucide-react** | 0.562.x – Icons (where used) |
+| **next-auth/react** | Session on client (`useSession`, `signOut`) |
+
+**Frontend patterns:**
+
+- **Server Components:** Root `app/layout.tsx` prefetches NextAuth session server-side.
+- **Client Components:** Data grids, modals, sidebar, and contexts use `"use client"`.
+- **No separate SPA:** Pages fetch REST JSON from `/api/*` and render in place.
+- **i18n:** `LanguageProvider` + `TranslationProvider` + `AutoTranslate` + `languages_screens_translations` dictionary.
+
+### 2.2 Backend
+
+| Technology | Version / role |
+|------------|----------------|
+| **Node.js** | Runtime (via Next.js) |
+| **Next.js Route Handlers** | `app/api/**/route.ts` – REST endpoints |
+| **NextAuth.js** | 4.24.x – Google OAuth, JWT session, `/api/auth/[...nextauth]` |
+| **pg (node-postgres)** | 8.18.x – PostgreSQL client (`getDbClient()`) |
+| **Nodemailer** | 7.x – SMTP for account email verification (optional) |
+| **Resend** | 6.x – Alternative email delivery |
+| **LangChain** | `@langchain/*`, `langchain` – GitHub summarizer playground (optional OpenAI) |
+
+**Backend patterns:**
+
+- Each API route calls `getAuthenticatedUser()` from `app/lib/auth.ts` when auth is required.
+- Authorization: SQL joins through `accounts` with `user_id = $authenticatedUserId`.
+- DB access: `getDbClient()` → `connect()` → parameterized queries → `end()` in `try/finally`.
+- Shared logic in `app/lib/*` (milestone validation, subscription price history, feature flags).
+- **Request boundary:** `proxy.ts` (Next.js 16) guards **page** routes; API routes enforce auth themselves.
+
+**Configuration (not committed):**
+
+- `.env.local` – `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, optional `PG*` env vars.
+- `database/db-config.json` – PostgreSQL connection fallback when env vars are absent.
+
+**Committed config:**
+
+- `config/app-feature-settings.json` – e.g. `EnableEmailVerification` (see `app/lib/app-feature-settings.ts`).
+
+### 2.3 Database
+
+| Technology | Role |
+|------------|------|
+| **PostgreSQL** | Primary data store |
+| **SQL scripts** | `database/<entity>/create-*.sql`, `alter-*.sql`, `migrate-*.sql` |
+| **Runners** | `database/run-sql.mjs`, `database/verify-table.mjs` |
+
+**Connection resolution** (`database/accounts/db-client.ts`):
+
+1. Prefer env: `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`, optional `PGSSL`.
+2. Else read `database/db-config.json` → `postgresql` object.
+
+**Note:** The app uses a new `pg.Client` per request path (no pool in `db-client.ts`).
+
+---
+
+## 3. High-level architecture
+
+### 3.1 Layer diagram (ASCII)
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           Client (Browser)                               │
-│  React 19, Next.js App Router, Tailwind, RSC + Client Components         │
-└─────────────────────────────────────────────────────────────────────────┘
-                    │
-                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                     Next.js (Next.js 16)                                 │
-│  ┌───────────────┐   ┌───────────────┐   ┌───────────────────────────┐  │
-│  │ proxy.ts      │   │ App Router    │   │ API Routes                 │  │
-│  │ (auth gate    │──▶│ (pages,       │──▶│ /api/* (REST, auth +       │  │
-│  │  for routes) │   │  layout, RSC) │   │  account-scoped access)    │  │
-│  └───────────────┘   └───────────────┘   └───────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────┘
-                    │
-                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│  Auth: NextAuth (Google OAuth, JWT)  │  Data: getDbClient() → PostgreSQL │
-└─────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         Browser (Client)                                  │
+│   React 19 · Tailwind 4 · Contexts (Auth, Theme, Language, Translation) │
+│   Client pages + modals under database/ · Landing components/             │
+└──────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                    Next.js 16 (single deployable unit)                    │
+│  ┌─────────────┐   ┌──────────────────┐   ┌────────────────────────────┐ │
+│  │ proxy.ts    │   │ App Router       │   │ API Route Handlers         │ │
+│  │ (page auth  │──▶│ layout, pages,   │──▶│ /api/* REST + NextAuth     │ │
+│  │  gate)      │   │ RSC + client)    │   │ getAuthenticatedUser()     │ │
+│  └─────────────┘   └──────────────────┘   └────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────────┘
+                    │                              │
+                    ▼                              ▼
+         ┌──────────────────┐          ┌─────────────────────┐
+         │ NextAuth (Google) │          │ PostgreSQL (pg)      │
+         │ JWT session       │          │ Tenant-scoped tables │
+         └──────────────────┘          └─────────────────────┘
 ```
 
-- **proxy.ts:** Runs before page rendering; checks session (cookie/JWT); redirects unauthenticated users to `/` for protected paths.
-- **App Router:** Serves pages and layout; uses server components by default; wraps app in Auth, Theme, Language, Translation providers.
-- **API routes:** All under `app/api/`. Authenticate via `getAuthenticatedUser()` and enforce access by joining through `accounts` → `user_id`.
+### 3.2 Mermaid – request path
+
+```mermaid
+flowchart TB
+  subgraph Client["Browser"]
+    UI[Pages & Modals]
+    CTX[Auth / Theme / Language / Translation]
+  end
+
+  subgraph NextJS["Next.js 16"]
+    PROXY[proxy.ts]
+    PAGES[App Router pages]
+    API["/api/* Route Handlers"]
+    AUTH["/api/auth NextAuth"]
+  end
+
+  subgraph Data["Data & Auth"]
+    PG[(PostgreSQL)]
+    GOOGLE[Google OAuth]
+  end
+
+  UI --> CTX
+  UI -->|fetch JSON| API
+  PROXY --> PAGES
+  PAGES --> UI
+  AUTH --> GOOGLE
+  AUTH --> PG
+  API --> PG
+  PROXY -->|session cookie| AUTH
+```
+
+### 3.3 Mermaid – tenant data hierarchy
+
+```mermaid
+erDiagram
+  users ||--o{ accounts : owns
+  accounts ||--o{ service_offices : has
+  service_offices ||--o{ customers : has
+  service_offices ||--o{ subcontractors : has
+  service_offices ||--o{ service_office_users : has
+  service_offices ||--o{ subscriptions : has
+  customers ||--o{ projects : has
+  customers ||--o{ contracts : has
+  contracts ||--o{ contract_milestones_data : has
+  contracts ||--o{ contract_milestones_data_for_success : has
+  contracts ||--o{ contract_user_fee : has
+  service_office_users ||--o{ service_office_users_data_authorization : scoped_by
+  subscriptions_offers ||--o{ subscription_offer_prices : priced_by
+  subscriptions_offers ||--o{ subscriptions : selected_in
+```
 
 ---
 
-## 4. System Flow
+## 4. System flows
 
-### 4.1 Authentication Flow
+### 4.1 Authentication
 
-1. User visits the app → **proxy** runs.
-2. If path is protected and no valid session → redirect to `/` with message.
-3. If path is public (e.g. `/`) → landing page; user can sign in with Google.
-4. NextAuth (`/api/auth/[...nextauth]`) handles OAuth; on success, user is upserted into `users` (PostgreSQL).
-5. Session is JWT-based; `getServerSession(authOptions)` / `getAuthenticatedUser()` resolve the current user by email from `users`.
+1. User opens a **protected page** → `proxy.ts` runs (matcher excludes `/api`, static assets).
+2. If no `next-auth.session-token` (or secure variant) and no valid JWT → redirect to `/` with `?message=Please sign in...`.
+3. Landing `/` offers Google sign-in via NextAuth.
+4. `signIn` callback upserts row in `users` (email, name, image, provider).
+5. Session is **JWT-based**; server APIs resolve the DB user by email via `getAuthenticatedUser()`.
 
-### 4.2 Data Access Flow (API)
+### 4.2 Typical CRUD API call
 
-1. Client or server calls an API route (e.g. `GET /api/customers?service_office_id=5`).
-2. Route calls `getAuthenticatedUser()` → 401 if not signed in.
-3. Route uses `getDbClient()`, runs a query that joins through `accounts` so that only data belonging to the current user’s accounts is returned (e.g. `INNER JOIN accounts a ON a.account_id = so.account_id AND a.user_id = $1`).
-4. Response is JSON; client updates UI.
+1. Client modal or page `fetch("/api/customers?service_office_id=5")`.
+2. Route: `getAuthenticatedUser()` → 401 if missing.
+3. SQL joins `customers` → `service_offices` → `accounts` WHERE `accounts.user_id = $1`.
+4. JSON response; UI updates grid or closes modal.
 
-### 4.3 Service Office User Data Authorization
+### 4.3 Service office user data authorization
 
-- **Service office users** are per–service office (employees/subcontractors), not the same as app users (Google accounts).
-- **service_office_users_data_authorization** table controls which **customers**, **projects**, and **contracts** a service office user can access.
-- **Entity types:** `2` = customer, `3` = project, `4` = contract, `100` = all future customers (entity_id = service_office_id), `101` = all future projects for a customer (entity_id = customer_id).
-- Assignments are managed in the **Assign Customers & Projects** wizard (modal) and persisted via `POST/GET /api/user-data-authorization`.
+- **Service office users** are not app login users; they belong to a service office.
+- Table `service_office_users_data_authorization` grants access to customers, projects, contracts, or “all future” entities.
+- **Entity types:** `2` = customer, `3` = project, `4` = contract, `100` = all future customers (`entity_id` = service_office_id), `101` = all future projects for a customer (`entity_id` = customer_id).
+- Managed in **Assign Customers & Projects** wizard → `GET/POST /api/user-data-authorization`.
+
+### 4.4 Subscriptions lifecycle
+
+1. **Subscription offers** define plan types (lookup table 8) and price history in `subscription_offer_prices`.
+2. Creating a **service office** requires `subscription_offer_id`; API creates office + active `subscriptions` row in one transaction.
+3. Changing offer on PATCH inactivates current subscription (`status=2`, end datetime) and inserts a new active row.
+
+### 4.5 Contract billing variants
+
+| Contract type (lookup) | UI / data |
+|------------------------|-----------|
+| Milestone (0/1) | `ContractMilestonesModal`, `contract_milestones_data`, reorder API |
+| Hourly (2) | `ContractHourlyFeeModal`, `contract_user_fee` (composite PK per professional grade) |
+| Success (4) | `ContractSuccessMilestonesModal`, `contract_milestones_data_for_success` |
+
+Milestone totals validated in `app/lib/contract-milestones-aggregate-validation.ts` (sum amounts ≤ contract amount; sum percentages ≤ 100%).
+
+### 4.6 Internationalization
+
+1. `LanguageProvider` stores UI `languageId`.
+2. `TranslationProvider` loads dictionary from `GET /api/translations/public?languageId=`.
+3. `t("source text")` in components; `AutoTranslate` walks DOM for untranslated nodes using the same dictionary.
+4. Screen-specific labels also live in `languages_screens` / `languages_screens_translations` and `ui_screen_translations`.
 
 ---
 
 ## 5. Frontend
 
-### 5.1 Structure
+### 5.1 Directory structure
 
-- **App Router:** `app/` – `layout.tsx`, `page.tsx`, and route segments under `app/`.
-- **Pages (main screens):**  
-  `accounts`, `service-offices`, `customers`, `subcontractors`, `service-office-users`, `projects`, `contracts`,  
-  `subscriptions-offers`, `system-lookups`, `languages`, `language-labels`, `screens`, `dashboards`, `playground`, `use-cases`, `billing`, `settings`, `protected`.
-- **Auth:** `app/auth/auth-error`, sign-in via NextAuth on `/`.
-- **Layout:** Root layout wraps with `AuthProvider`, `ThemeProvider`, `LanguageProvider`, `TranslationProvider`, `AutoTranslate`. Authenticated areas use a layout that includes the **sidebar** (navigation).
+| Path | Purpose |
+|------|---------|
+| `app/layout.tsx` | Root layout: fonts, providers, `AutoTranslate` |
+| `app/page.tsx` | Public landing (marketing sections from `components/`) |
+| `app/<feature>/page.tsx` | Authenticated feature screens (each wraps `SidebarProvider`) |
+| `app/components/` | Global shell: sidebar, notifications, theme, auto-translate |
+| `app/context/` | React contexts |
+| `components/` | Landing page sections + shared `ui/*` |
+| `database/<feature>/` | Feature types, modals, SQL scripts (co-located domain modules) |
 
-### 5.2 Key Components
+### 5.2 Application pages
 
-| Location | Purpose |
-|----------|--------|
-| `app/components/sidebar.tsx` | Main nav sidebar; uses Session, language, translations; ThemeSelector; mobile toggle. |
-| `app/components/ThemeSelector.tsx` | Theme toggle (currently hidden for UX). |
-| `app/components/AutoTranslate.tsx` | Walks `document.body` text nodes and applies `languages_screens_translations` via `translateExact`. Skips subtrees marked `data-no-auto-translate` (e.g. dynamic numeric columns like subscription-offer prices) so React updates are not overwritten by a stale cached “original” string. |
-| `app/components/notifications.tsx` | In-app notifications. |
-| `components/header.tsx`, `components/hero.tsx`, etc. | Landing page sections. |
+| Route | File | Purpose |
+|-------|------|---------|
+| `/` | `app/page.tsx` | Landing + sign-in |
+| `/auth/auth-error` | `app/auth/auth-error/page.tsx` | OAuth error display |
+| `/dashboards` | `app/dashboards/page.tsx` | Overview dashboard (sidebar: hidden) |
+| `/accounts` | `app/accounts/page.tsx` | Account CRUD, wizard, service offices shortcut |
+| `/service-offices` | `app/service-offices/page.tsx` | Service office CRUD + subscription offer |
+| `/customers` | `app/customers/page.tsx` | Customers per service office |
+| `/subcontractors` | `app/subcontractors/page.tsx` | Subcontractors |
+| `/service-office-users` | `app/service-office-users/page.tsx` | Users + assign wizard |
+| `/projects` | `app/projects/page.tsx` | Projects + contract assignment |
+| `/contracts` | `app/contracts/page.tsx` | Contracts grid + modals |
+| `/user-contract-fee` | `app/user-contract-fee/page.tsx` | Hourly fee rows per contract/grade |
+| `/subscriptions-offers` | `app/subscriptions-offers/page.tsx` | Subscription product catalog |
+| `/system-lookups` | `app/system-lookups/page.tsx` | Lookup tables and values |
+| `/languages` | `app/languages/page.tsx` | Language definitions |
+| `/language-labels` | `app/language-labels/page.tsx` | Translation label editor |
+| `/screens` | `app/screens/page.tsx` | UI screens registry + permissions |
+| `/playground` | `app/playground/page.tsx` | API / LangChain playground (sidebar: hidden) |
+| `/use-cases` | `app/use-cases/page.tsx` | Use-case demos (sidebar: hidden) |
+| `/protected` | `app/protected/page.tsx` | Sample protected page |
 
-### 5.3 Contexts
+**Planned / stub routes (in sidebar or proxy, no `page.tsx` yet):** `/billing`, `/settings`.
 
-- **AuthProvider** (`app/context/AuthContext.tsx`): Wraps with NextAuth `SessionProvider`; session can be pre-fetched server-side.
-- **ThemeProvider** (`app/context/ThemeContext.tsx`): Theme state (e.g. light/dark).
-- **LanguageProvider** (`app/context/LanguageContext.tsx`): Current UI language.
-- **TranslationProvider** (`app/context/TranslationContext.tsx`): Translation strings for UI.
+**Shell pattern:** Each authenticated page imports `SidebarProvider`, `Sidebar`, `MobileMenuButton`, and often `NotificationContainer`.
 
-### 5.4 Database / Feature Components (Modals & Wizards)
+### 5.3 React contexts
 
-Reusable modals and wizards live under `database/` and are used by app pages:
+| Context | File | Responsibility |
+|---------|------|----------------|
+| **AuthProvider** | `app/context/AuthContext.tsx` | `SessionProvider`; optional server-hydrated session |
+| **ThemeProvider** | `app/context/ThemeContext.tsx` | Light/dark; syncs `data-theme` on `<html>` |
+| **LanguageProvider** | `app/context/LanguageContext.tsx` | Selected UI language id |
+| **TranslationProvider** | `app/context/TranslationContext.tsx` | `t()`, dictionary from public translations API |
 
-- **Accounts:** `AccountModal`, `AccountWizardModal` (Service Office step: subscription-offer options are **all rows** from system lookup table **8** for the current UI language, merged with **active** `subscriptions_offers` by `subscription_offer_type`; each selectable option submits `subscription_offer_id`), `EmailVerificationModal`
-- **Service offices:** `ServiceOfficeModal`, `AccountServiceOfficesModal`; modal includes subscription-offer dropdown from active `subscriptions_offers` rows. On create it is required and creates initial `subscriptions` row. On edit, changing offer closes current active `subscriptions` row (`status=2`, end/update timestamps) and inserts a new active row.
-- **Customers:** `CustomerModal`, `ServiceOfficeCustomersModal`
-- **Projects:** `ProjectModal`, `CustomerProjectsModal`, `AssignContractsModal`
-- **Contracts:** `ContractModal`; the contracts grid (`app/contracts/page.tsx`) shows **contract type** as a translated label from the Contract Type system lookup (not the raw stored id). **Hourly create:** the modal closes after the first successful save (no second save to obtain `contract_id` for a separate fee button). Active + hourly still requires at least one `contract_user_fee` row when **updating** an existing contract (`PATCH /api/contracts/[id]`). Hourly (contract type 2) user-fee configuration uses `ContractHourlyFeeModal` (`database/contract_user_fee/ContractHourlyFeeModal.tsx`) from the contract wizard (Configure user fee) and from the contracts grid; milestone configuration for contract types 0/1 uses `ContractMilestonesModal` + `ContractMilestoneModal` (`database/contract_milestones_data/`) with row drag-and-drop reorder (`POST /api/contract-milestones/reorder`). Contract type 4 (“success”) adds `ContractSuccessMilestonesModal` + `ContractSuccessMilestoneModal` (`database/contract_milestones_data_for_success/`) with its own CRUD/reorder APIs and type-dependent field validation (Fixed vs Percentage). Milestone add/edit for regular milestones enforces total amount vs `contract_amount_value` and total percentage ≤ 100% (`app/lib/contract-milestones-aggregate-validation.ts`).  
-- **Subcontractors:** `SubcontractorModal`, `ServiceOfficeSubcontractorsModal`
-- **Service office users:** `ServiceOfficeUserModal`, `ServiceOfficeUsersModal`, `AssignCustomersProjectsWizard`
-- **System lookups:** `SystemLookupModal`, `LookupValuesModal`
-- **Screens:** `ScreenModal`, `ScreenTranslationsModal`, `ScreenPermissionsModal`
-- **Languages:** `LanguageModal`
-- **Subscriptions offers:** `SubscriptionOfferModal` (`database/subscriptions_offers/SubscriptionOfferModal.tsx`); grid and CRUD on `app/subscriptions-offers/page.tsx`. Offer **type** uses `system_lookup_values` for `lookup_table_id = 8` (with `language_id` for labels). On save, `subscription_offer_name` is set to the **translated** `value_name` for the selected type. **Monthly price and currency** are stored in **`subscription_offer_prices`** (current row = `price_end_datetime IS NULL`); changing price/currency closes the previous row (`price_end_datetime` set) and inserts a new open row. **Currency** options match contracts (`database/contracts/currencies.ts`). If **type** `value_id` is **0**, monthly price is forced to **0** and the price field is disabled (`SUBSCRIPTION_OFFER_TYPE_ZERO_PRICE`). **At most one Active offer per `subscription_offer_type`** on `subscriptions_offers` (partial unique where `status = 1`). API error text matches `database/subscriptions_offers/active-type-conflict-message.ts` for `t()` translation. `updated_datetime` is NULL until the first UPDATE (trigger sets it on update only).
+### 5.4 Shared libraries (frontend consumption)
 
-Conventions: functional components, TypeScript interfaces, named exports; modals receive `isOpen`, `onClose`, and entity-specific props.
+| Module | Role |
+|--------|------|
+| `lib/utils.ts` | `cn()` – classname helper for UI components |
+| `database/contracts/currencies.ts` | ISO currency list for contract/subscription modals |
+| `database/system_lookups/system-lookup-tables.ts` | Known lookup table ids (e.g. contract type = 7, subscription type = 8) |
 
 ---
 
 ## 6. Backend (API)
 
-### 6.1 API Route Pattern
+### 6.1 Conventions
 
-- **Auth:** Each route that needs it calls `getAuthenticatedUser()` from `app/lib/auth.ts`; returns 401 if not logged in.
-- **Access control:** Queries filter by `user_id` via `accounts` (e.g. join `service_offices` → `accounts` → `accounts.user_id = $1`).
-- **DB:** `getDbClient()` from `database/accounts/db-client.ts` (reads `database/db-config.json`). Each route typically `connect()` → query → `end()` in a try/finally.
-- **Milestone totals:** `app/lib/contract-milestones-aggregate-validation.ts` — shared rules for sum of milestone amounts vs contract amount and sum of percentages ≤ 100; used by milestone POST/PATCH routes and the add/edit milestone modal.
+- **Auth:** `getAuthenticatedUser()` → `{ user, error }`; return `error` response when non-null.
+- **Authorization:** Join `accounts` (or equivalent chain) and filter `user_id`.
+- **Errors:** JSON `{ error: string }` with appropriate HTTP status.
+- **SQL:** Always parameterized (`$1`, `$2`, …).
 
-### 6.2 Main API Endpoints
+### 6.2 API endpoints
 
-| Area | Methods | Route(s) | Notes |
-|------|---------|----------|--------|
-| Auth | GET, POST | `/api/auth/[...nextauth]` | NextAuth handler. |
-| Accounts | GET, POST | `/api/accounts` | GET/POST; GET by user. |
-| Accounts | GET, PATCH, DELETE | `/api/accounts/[id]` | Single account. |
-| Service offices | GET, POST | `/api/service-offices` | Filter by account. **POST** requires `subscription_offer_id`; creates service office + initial `subscriptions` row (`status=1`, `subscription_start_datetime=CURRENT_TIMESTAMP`) in one transaction. |
-| Service offices | GET, PATCH, DELETE | `/api/service-offices/[id]` | **PATCH** supports `subscription_offer_id`; when changed, inactivates current active subscription (status=2, sets `subscription_end_datetime` and `updated_datetime` to now) and inserts a new active subscription row. |
-| Customers | GET, POST | `/api/customers` | Optional `service_office_id`. |
-| Customers | GET, PATCH, DELETE | `/api/customers/[id]` | |
-| Projects | GET, POST | `/api/projects` | By service_office_id, customer_id. |
-| Projects | GET, PATCH, DELETE | `/api/projects/[id]` | |
-| Contracts | GET, POST | `/api/contracts` | By service_office_id, customer_id. |
-| Contracts | PATCH, DELETE | `/api/contracts/[id]` | |
-| Contract milestones | GET, POST | `/api/contract-milestones` | Milestones per contract (`contract_id` required); list ordered by `milestone_sequential_number`. **POST** rejects when sum of milestone amounts would exceed `contracts.contract_amount_value` (if set) or sum of percentages would exceed 100%. |
-| Contract milestones | POST | `/api/contract-milestones/reorder` | Body: `contract_id`, `ordered_sequential_numbers` (permutation of existing seq values). Remaps `milestone_sequential_number` to 1…n in that order (transaction + offset strategy to avoid PK clashes). Returns `{ milestones }`. |
-| Contract milestones | PATCH, DELETE | `/api/contract-milestones/[contract_id]/[milestone_sequential_number]` | Single milestone updates (same aggregate rules as POST when amount/percentage change); **DELETE** also compacts remaining rows to sequential 1…n and returns `{ success, milestones }`. |
-| Contract success milestones | GET, POST | `/api/contract-success-milestones` | By `contract_id`; milestone type rules: Fixed(0) requires amount, Percentage(1) requires percentage + reference figure + reference figure description. |
-| Contract success milestones | POST | `/api/contract-success-milestones/reorder` | Same reorder semantics as regular milestones; returns `{ milestones }`. |
-| Contract success milestones | PATCH, DELETE | `/api/contract-success-milestones/[contract_id]/[milestone_sequential_number]` | Update/delete single success milestone; delete compacts sequence to 1…n. |
-| Subcontractors | GET, POST | `/api/subcontractors` | By service_office_id. |
-| Subcontractors | GET, PATCH, DELETE | `/api/subcontractors/[id]` | |
-| Service office users | GET, POST | `/api/service-office-users` | By service_office_id. |
-| Service office users | GET, PATCH, DELETE | `/api/service-office-users/[id]` | |
-| User data authorization | GET, POST | `/api/user-data-authorization` | Assign customers/projects/contracts to service office user. |
-| Entity pairs | GET, POST | `/api/entities-pairs` | Project–contract links (e.g. type 0). |
-| Subscriptions offers | GET, POST | `/api/subscriptions-offers` | Authenticated; list / create. JSON rows use `subscriptionOfferRowToJson` (e.g. `subscription_offer_monthly_price` as string). |
-| Subscriptions offers | PATCH, DELETE | `/api/subscriptions-offers/[id]` | Update / delete; PATCH/POST return the same JSON shape as the list. |
-| Languages | GET, POST | `/api/languages` | |
-| Languages | PATCH, DELETE | `/api/languages/[id]` | |
-| UI screens | GET, POST | `/api/ui-screens` | **GET:** optional query `language_id`; `localized_name` / `localized_description` from `ui_screen_translations` (matched by `language_name` like name), phrase fallbacks (`source_text` = name or description), else English columns. |
-| UI screens | GET, PATCH, DELETE | `/api/ui-screens/[id]` | |
-| UI screen translations | GET, POST | `/api/ui-screen-translations` | **GET:** resolves a row by `screen_id` and `languages.language_name` for the requested `language_id` (not only exact `language_id`). |
-| UI screen user type permissions | GET, POST, DELETE | `/api/ui-screen-usertype-permissions` | |
-| System lookups | GET, POST | `/api/system-lookups` | |
-| System lookups | GET, PATCH, DELETE | `/api/system-lookups/[id]` | |
-| System lookup values | GET, POST | `/api/system-lookup-values` | |
-| System lookup values | PATCH, DELETE | `/api/system-lookup-values/[id]` | |
-| Translations | GET, POST | `/api/translations` | |
-| Translations | PATCH, DELETE | `/api/translations/[id]` | |
-| App feature settings | GET | `/api/app-feature-settings` | Returns `EnableEmailVerification` (and future safe toggles) for client UX. |
-| Account verify email | POST | `/api/account/verify-email/send`, `verify` | Send respects `config/app-feature-settings.json` → `EnableEmailVerification`. |
-| Keys (API keys) | GET, POST | `/api/keys` | |
-| Keys | GET, PATCH, DELETE | `/api/keys/[id]` | |
-| Keys | POST | `/api/keys/validate` | |
-| GitHub summarizer | GET, POST | `/api/github-summarizer` | Optional AI feature. |
+| Area | Methods | Route | Notes |
+|------|---------|-------|-------|
+| **Auth** | GET, POST | `/api/auth/[...nextauth]` | NextAuth handler; `authOptions` exported |
+| **Accounts** | GET, POST | `/api/accounts` | List/create for current user |
+| | GET, PATCH, DELETE | `/api/accounts/[id]` | Single account |
+| **Verify email** | POST | `/api/account/verify-email/send` | Respects `EnableEmailVerification` |
+| | POST | `/api/account/verify-email/verify` | Code verification |
+| **Service offices** | GET, POST | `/api/service-offices` | POST requires `subscription_offer_id`; creates `subscriptions` |
+| | GET, PATCH, DELETE | `/api/service-offices/[id]` | PATCH can rotate subscription offer |
+| **Customers** | GET, POST | `/api/customers` | Optional `service_office_id` |
+| | GET, PATCH, DELETE | `/api/customers/[id]` | |
+| **Projects** | GET, POST | `/api/projects` | Filters by office/customer |
+| | GET, PATCH, DELETE | `/api/projects/[id]` | |
+| **Contracts** | GET, POST | `/api/contracts` | |
+| | GET, PATCH, DELETE | `/api/contracts/[id]` | Hourly update may require `contract_user_fee` rows |
+| **Contract milestones** | GET, POST | `/api/contract-milestones` | Aggregate validation on POST |
+| | POST | `/api/contract-milestones/reorder` | Permutation of sequential numbers |
+| | PATCH, DELETE | `/api/contract-milestones/[contract_id]/[milestone_sequential_number]` | Delete compacts sequence |
+| **Contract success milestones** | GET, POST | `/api/contract-success-milestones` | Type-specific field rules |
+| | POST | `/api/contract-success-milestones/reorder` | |
+| | PATCH, DELETE | `/api/contract-success-milestones/[contract_id]/[milestone_sequential_number]` | |
+| **Contract user fee** | GET, POST | `/api/contract-user-fee` | Hourly rates by professional grade |
+| | GET, PATCH, DELETE | `/api/contract-user-fee/[contract_id]/[user_professional_grade]` | Composite key |
+| **Subcontractors** | GET, POST | `/api/subcontractors` | |
+| | GET, PATCH, DELETE | `/api/subcontractors/[id]` | |
+| **Service office users** | GET, POST | `/api/service-office-users` | |
+| | GET, PATCH, DELETE | `/api/service-office-users/[id]` | |
+| **User data authorization** | GET, POST | `/api/user-data-authorization` | Scope assignments |
+| **Entities pairs** | GET, POST | `/api/entities-pairs` | e.g. project–contract links (type 0) |
+| **Subscriptions offers** | GET, POST | `/api/subscriptions-offers` | Price via `subscription_offer_prices` |
+| | GET, PATCH, DELETE | `/api/subscriptions-offers/[id]` | One active offer per type |
+| **Languages** | GET, POST | `/api/languages` | |
+| | PATCH, DELETE | `/api/languages/[id]` | |
+| | GET | `/api/languages/public` | Unauthenticated or public list |
+| | * | `/api/languages/migrate` | Maintenance migration |
+| **Translations** | GET, POST | `/api/translations` | Admin translation CRUD |
+| | PATCH, DELETE | `/api/translations/[id]` | |
+| | GET | `/api/translations/public` | Dictionary for `TranslationProvider` |
+| | * | `/api/translations/migrate` | Maintenance |
+| **UI screens** | GET, POST | `/api/ui-screens` | Optional `language_id` for localized fields |
+| | GET, PATCH, DELETE | `/api/ui-screens/[id]` | |
+| **UI screen translations** | GET, POST | `/api/ui-screen-translations` | Per-screen localized name/description |
+| **UI screen permissions** | GET, POST, DELETE | `/api/ui-screen-usertype-permissions` | User-type ↔ screen |
+| **Language screens** | GET | `/api/screens` | Lists `languages_screens` registry |
+| **System lookups** | GET, POST | `/api/system-lookups` | |
+| | GET, PATCH, DELETE | `/api/system-lookups/[id]` | |
+| **System lookup values** | GET, POST | `/api/system-lookup-values` | |
+| | PATCH, DELETE | `/api/system-lookup-values/[id]` | |
+| **Lookup translations** | GET, POST | `/api/system-lookup-translations` | Table-level labels |
+| | GET, POST | `/api/system-lookup-value-translations` | Value-level labels |
+| **App settings** | GET | `/api/app-feature-settings` | Safe feature flags for UI |
+| **API keys** | GET, POST | `/api/keys` | |
+| | GET, PATCH, DELETE | `/api/keys/[id]` | |
+| | POST | `/api/keys/validate` | |
+| **GitHub summarizer** | GET, POST | `/api/github-summarizer` | LangChain + OpenAI (optional) |
+| | GET | `/api/github-summarizer/demo` | Demo endpoint |
+
+### 6.3 Server-side helpers (`app/lib/`)
+
+| File | Purpose |
+|------|---------|
+| `auth.ts` | `getAuthenticatedUser()`, `requireAuth()` |
+| `app-feature-settings.ts` | Read `config/app-feature-settings.json` |
+| `subscription-offer-prices.ts` | Close/open price rows on offer save |
+| `contract-milestones-aggregate-validation.ts` | Milestone sum rules |
+| `contract-milestones-sequencing.ts` | Reorder/compaction for regular milestones |
+| `contract-success-milestones-sequencing.ts` | Same for success milestones |
+| `githubUtils.ts` | Helpers for GitHub summarizer API |
 
 ---
 
 ## 7. Database
 
-### 7.1 Connection
+### 7.1 Connection & tooling
 
-- **Config:** `database/db-config.json` (key: `postgresql`: host, port, database, username, password, ssl).
-- **Client:** `getDbClient()` in `database/accounts/db-client.ts` returns a new `pg.Client` per use; no connection pool in this file.
+- **Config:** `database/db-config.json` or `PG*` environment variables.
+- **Client:** `getDbClient()` in `database/accounts/db-client.ts`.
+- **Scripts:** `database/<entity>/create-*.sql`; run with `node database/run-sql.mjs <path>`.
 
-### 7.2 Core Tables (Order Reflects Dependencies)
+### 7.2 Core tables
 
 | Table | Purpose |
-|-------|--------|
-| **users** | App users (Google OAuth); `id` (UUID), `email`, `name`, `image`, `provider`, etc. |
-| **accounts** | Tenant root; `account_id`, `user_id` (→ users), `account_name`, contact info, card fields, `status` (1=Active, 2=Inactive, 3=Deleted). |
-| **service_offices** | `service_office_id`, `account_id`, name, description, country, `status`. |
-| **customers** | `customer_id`, `service_office_id`, name, legal_id, contact, address, `status`. |
-| **subcontractors** | `subcontractor_id`, `service_office_id`, name, contact, `status`. |
-| **projects** | `project_id`, `service_office_id`, `customer_id`, name, scope, `status`. |
-| **contracts** | `contract_id`, `service_office_id`, `customer_id`, name, type, status, dates, amount, currency, payment plan fields. |
-| **contract_milestones_data** | Contract milestones keyed by (`contract_id`, `milestone_sequential_number`), with criteria, due date, amount, percentage (0..100), progress/condition indicators, and related dates/user IDs. Display/API order is by `milestone_sequential_number`. Reorder and post-delete compaction remap sequences to 1…n via `app/lib/contract-milestones-sequencing.ts` (temporary offset updates). |
-| **contract_milestones_data_for_success** | “Success” milestones per contract: same PK pattern (`contract_id`, `milestone_sequential_number`) with enforced insert sequence 1..n per contract; `milestone_criteria` required; `milestone_type` 0=Fixed / 1=Percentage. Type rules: Fixed requires `milestone_amount` and keeps `milestone_percentage` NULL; Percentage requires `milestone_percentage` (0..100) and keeps `milestone_amount` NULL. `milestone_percentage_reference_figure` (numeric) **and** `milestone_percentage_reference_figure_description` (`VARCHAR(200)`) are required for Percentage (1), optional for Fixed (0). Optional `min_payment_amount` / `max_payment_amount`; progress/met fields aligned with `contract_milestones_data`. Scripts: recreate `database/contract_milestones_data_for_success/create-contract-milestones-data-for-success-table.sql`, alter existing DBs `database/contract_milestones_data_for_success/alter-milestone-type-amount-percentage-nullability.sql`. |
-| **service_office_users** | `service_office_user_id`, `service_office_id`, `subcontractor_id`, user_name, user_type, professional_grade, contact, `status`, password (optional). |
-| **service_office_users_data_authorization** | `auth_id`, `user_id` (→ service_office_user_id), `authorized_entity_type`, `entity_id`. Types: 2=customer, 3=project, 4=contract, 100=all future customers (entity_id=service_office_id), 101=all future projects per customer (entity_id=customer_id). |
-| **entities_pairs** | `pair_id`, `entities_pair_type`, `parent_entity_id`, `child_entity_id`, `sort_order`. Used e.g. for project–contract links (type 0). |
-| **languages** | `id`, `language_name`, `direction` (0=LTR, 1=RTL). |
-| **ui_screens** | `screen_id`, `screen_name`, `screen_description`. |
-| **ui_screen_translations** | Per-screen, per-language name/description (`ScreenTranslationsModal` + `/api/ui-screen-translations`). |
-| **ui_screen_usertype_permissions** | Screen–user-type permissions. |
-| **system_lookups** | `lookup_table_id`, `lookup_table_name`, description. |
-| **system_lookup_values** | Lookup rows (table reference by name or FK depending on migration). |
-| **system_lookup_translations** / **system_lookup_value_translations** | Localized labels. |
-| **api_keys** | API keys (if used). |
-| **email_verification** | Email verification codes (e.g. for account flows). |
-| **subscriptions_offers** | `subscription_offer_id`, `administrator_restricted_offer` (0/1), `subscription_offer_name` (100 chars), `subscription_offer_type` (`value_id` for lookup **8**), `status` (1=Active, 2=Inactive, 3=Deleted), `creation_datetime`, `updated_datetime` (NULL until first UPDATE; trigger). **No** monthly price/currency on this table — they live in **`subscription_offer_prices`**. **Partial unique** on `subscription_offer_type` where `status = 1`. Scripts: `create-subscriptions-offers-table.sql`, `migrate-move-price-columns-to-subscription-offer-prices.sql` (legacy DBs that still had price columns), older migrates as before. |
-| **subscription_offer_prices** | Price **history** per offer: `subscription_offer_price_id`, `subscription_offer_id` (FK CASCADE), `subscription_offer_monthly_price`, `offer_currency` (ISO 4217 uppercase), `price_start_datetime`, `price_end_datetime` (NULL = current/open row). **At most one open row per offer** (`uq_subscription_offer_prices_one_open` where `price_end_datetime IS NULL`). API `POST/PATCH /api/subscriptions-offers` closes the previous open row and inserts a new one when price or currency changes. Scripts: `database/subscription_offer_prices/create-subscription-offer-prices-table.sql`; logic: `app/lib/subscription-offer-prices.ts`. |
-| **subscriptions** | `subscription_id`, `service_office_id`, `subscription_offer_id`, `status` (1=Active, 2=Inactive, 3=Deleted), `subscription_start_datetime`, `subscription_end_datetime` (NULL default), `creation_datetime`, `updated_datetime` (NULL until first UPDATE). Scripts: `database/subscriptions/create-subscriptions-table.sql`, `database/subscriptions/migrate-backfill-subscriptions-from-type-0.sql` (backfill existing service offices with active type-0 offer when missing). |
+|-------|---------|
+| **users** | App users (Google OAuth): `id` (UUID), `email`, `name`, `image`, `provider`, timestamps |
+| **accounts** | Tenant root: contact, card fields, `status` (1 Active, 2 Inactive, 3 Deleted) |
+| **service_offices** | Office under account: name, country, `status` |
+| **customers** | Customer under service office |
+| **subcontractors** | Subcontractor under service office |
+| **projects** | Project under customer + office |
+| **contracts** | Contract: type, status, dates, amount, currency, payment plan fields |
+| **contract_milestones_data** | PK (`contract_id`, `milestone_sequential_number`); amounts, %, criteria |
+| **contract_milestones_data_for_success** | Success contract milestones; type 0 Fixed / 1 Percentage |
+| **contract_user_fee** | PK (`contract_id`, `user_professional_grade`); hourly rate + discount % |
+| **service_office_users** | Office staff; optional `subcontractor_id`, `user_type`, password |
+| **service_office_users_data_authorization** | Scoped entity access per office user |
+| **entities_pairs** | Generic parent/child links (e.g. project–contract, type 0) |
+| **subscriptions_offers** | Offer catalog; partial unique on active `subscription_offer_type` |
+| **subscription_offer_prices** | Price history; one open row per offer (`price_end_datetime IS NULL`) |
+| **subscriptions** | Office subscription instance linked to offer |
+| **languages** | `language_name`, `direction` (LTR/RTL) |
+| **languages_screens** | Screen registry for translation grouping |
+| **languages_screens_translations** | Source text → translated text per screen + language |
+| **ui_screens** | Admin UI screen registry (name, description) |
+| **ui_screen_translations** | Localized screen metadata |
+| **ui_screen_usertype_permissions** | Which user types may access a screen |
+| **system_lookups** | Lookup table definitions |
+| **system_lookup_values** | Values per lookup table |
+| **system_lookup_translations** | Localized lookup table names |
+| **system_lookup_value_translations** | Localized value labels |
+| **api_keys** | Stored API keys for integrations |
+| **email_verification** | Verification codes for account email flow |
 
-Create scripts live under `database/<entity>/create-*.sql` and are run manually or via `database/run-sql.mjs`.
+### 7.3 Entity relationship (summary)
+
+```
+users
+ └── accounts
+      └── service_offices
+           ├── customers → projects, contracts
+           ├── subcontractors
+           ├── service_office_users → service_office_users_data_authorization
+           └── subscriptions → subscriptions_offers → subscription_offer_prices
+
+contracts → contract_milestones_data | contract_milestones_data_for_success | contract_user_fee
+projects ↔ contracts via entities_pairs (optional)
+```
 
 ---
 
-## 8. Security Measures
+## 8. Security
 
-- **Authentication:** NextAuth with Google OAuth; JWT session; no password storage for app users. Session validated in proxy and in API via `getAuthenticatedUser()`.
-- **Route protection:** `proxy.ts` redirects unauthenticated users to `/` for all protected paths (e.g. `/dashboards`, `/accounts`, `/customers`, …). API routes do not rely on proxy alone; they enforce auth themselves.
-- **Authorization:** API routes that touch accounts/service offices/customers/projects/contracts join through `accounts` and filter by `user_id` (from session). No cross-account data leakage by design.
-- **Service office user scope:** Data visibility for service office users is limited by `service_office_users_data_authorization` and applied where relevant (e.g. user-data-authorization API).
-- **Secrets:** `NEXTAUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, DB credentials in `db-config.json` or env; not committed.
-- **SQL:** Parameterized queries (`$1`, `$2`, …) throughout; no raw string interpolation of user input into SQL.
+| Measure | Implementation |
+|---------|----------------|
+| **Authentication** | Google OAuth via NextAuth; JWT session cookie |
+| **Page protection** | `proxy.ts` redirects unauthenticated users from listed paths to `/` |
+| **API protection** | Each sensitive route calls `getAuthenticatedUser()` (proxy does not cover `/api`) |
+| **Tenant isolation** | SQL joins through `accounts.user_id` |
+| **Service office user scope** | `service_office_users_data_authorization` + dedicated API |
+| **Secrets** | Env + `db-config.json` gitignored; never commit credentials |
+| **SQL injection** | Parameterized queries only |
+
+**Proxy protected paths** (see `proxy.ts`):  
+`/dashboards`, `/accounts`, `/service-offices`, `/customers`, `/subcontractors`, `/service-office-users`, `/projects`, `/contracts`, `/user-contract-fee`, `/subscriptions-offers`, `/system-lookups`, `/languages`, `/language-labels`, `/screens`, `/playground`, `/use-cases`, `/billing`, `/settings`, `/protected`.
 
 ---
 
-## 9. Repo Layout (Summary)
+## 9. Components catalog
+
+Every reusable UI module built for this project, grouped by location.
+
+### 9.1 Application shell (`app/components/`)
+
+| Component | Meaning |
+|-----------|---------|
+| **sidebar.tsx** | Main navigation, mobile drawer, `SidebarProvider` / `useSidebar`, sign-out, language selector integration |
+| **ThemeSelector.tsx** | Light/dark toggle (may be hidden in sidebar for UX) |
+| **AutoTranslate.tsx** | Client-side DOM walker; translates visible text via dictionary; skips `data-no-auto-translate` subtrees |
+| **notifications.tsx** | Toast stack: `NotificationContainer`, `useNotifications` |
+
+### 9.2 Landing & marketing (`components/`)
+
+| Component | Meaning |
+|-----------|---------|
+| **header.tsx** | Top navigation on public landing |
+| **hero.tsx** | Hero section |
+| **features.tsx** | Product features grid |
+| **how-it-works.tsx** | Process explanation |
+| **pricing.tsx** | Pricing section |
+| **try-it-out.tsx** | CTA / trial section |
+| **cta.tsx** | Call-to-action block |
+| **footer.tsx** | Page footer |
+| **theme-provider.tsx** | Wrapper for landing theme (next-themes) |
+
+### 9.3 Shared UI primitives (`components/ui/`)
+
+| Component | Meaning |
+|-----------|---------|
+| **button.tsx** | Styled button variants (CVA) |
+| **card.tsx** | Card container for landing sections |
+| **badge.tsx** | Small status/label badge |
+
+### 9.4 Feature modals & wizards (`database/`)
+
+| Component | Meaning |
+|-----------|---------|
+| **AccountModal** | Create/edit single account |
+| **AccountWizardModal** | Multi-step account + initial service office; subscription offer from lookup 8 + active offers |
+| **EmailVerificationModal** | Enter verification code when email verification enabled |
+| **ServiceOfficeModal** | Create/edit service office; subscription offer required on create |
+| **AccountServiceOfficesModal** | List/manage offices for an account |
+| **CustomerModal** | Create/edit customer |
+| **ServiceOfficeCustomersModal** | Pick/manage customers for an office |
+| **ProjectModal** | Create/edit project |
+| **CustomerProjectsModal** | Projects for a customer |
+| **AssignContractsModal** | Link contracts to a project (`entities_pairs`) |
+| **ContractModal** | Full contract wizard: type, amounts, milestones/hourly/success entry points |
+| **ContractMilestonesModal** | List/reorder milestone rows for standard contracts |
+| **ContractMilestoneModal** | Add/edit one milestone with aggregate validation |
+| **ContractSuccessMilestonesModal** | Success contract milestone list |
+| **ContractSuccessMilestoneModal** | Add/edit one success milestone (Fixed vs Percentage rules) |
+| **ContractHourlyFeeModal** | Configure hourly fees from contract flow (type 2) |
+| **ContractUserFeeModal** | Manage fee grid on `/user-contract-fee` page |
+| **SubcontractorModal** | Create/edit subcontractor |
+| **ServiceOfficeSubcontractorsModal** | Subcontractors for an office |
+| **ServiceOfficeUserModal** | Create/edit office user |
+| **ServiceOfficeUsersModal** | Users list for an office |
+| **AssignCustomersProjectsWizard** | Assign data authorization scopes to an office user |
+| **SystemLookupModal** | Create/edit lookup table metadata |
+| **LookupValuesModal** | Values for a lookup table |
+| **SubscriptionOfferModal** | Subscription product with price history and type rules |
+| **LanguageModal** | Create/edit UI language |
+| **ScreenModal** | Register UI screen (`ui_screens`) |
+| **ScreenTranslationsModal** | Translations for screen title/description |
+| **ScreenPermissionsModal** | User-type permissions per screen |
+
+### 9.5 Supporting modules (not React, but feature-bound)
+
+| Path | Meaning |
+|------|---------|
+| `database/*/types.ts` | TypeScript interfaces per entity |
+| `database/subscriptions_offers/active-type-conflict-message.ts` | User-facing error key for duplicate active offer type |
+| `database/run-sql.mjs` | Execute SQL files against configured DB |
+
+---
+
+## 10. Repository layout
 
 ```
 app/
-  api/                    # API routes (see section 6)
-  auth/                   # Auth error page
-  components/             # Sidebar, ThemeSelector, AutoTranslate, notifications
-  context/                # Auth, Theme, Language, Translation
-  dashboards/, accounts/, service-offices/, customers/, subcontractors/,
-  service-office-users/, projects/, contracts/, subscriptions_offers/, system-lookups/, languages/,
-  language-labels/, screens/, playground/, use-cases/, billing/, settings/, protected/
+  api/                      # REST route handlers (see §6)
+  auth/                     # auth-error page
+  components/               # Sidebar, notifications, AutoTranslate, ThemeSelector
+  context/                  # Auth, Theme, Language, Translation providers
+  lib/                      # auth, validations, feature settings, subscription prices
+  accounts/, service-offices/, customers/, subcontractors/, service-office-users/,
+  projects/, contracts/, user-contract-fee/, subscriptions-offers/, system-lookups/,
+  languages/, language-labels/, screens/, dashboards/, playground/, use-cases/, protected/
   layout.tsx, page.tsx, globals.css
-components/               # Landing: header, hero, features, etc.
-config/                   # app-feature-settings.json (feature flags / app toggles)
-database/
-  accounts/               # db-client, types, create table, modals
-  Service_Offices/        # create table, modals, types, countries
-  customer/, project/, contracts/, contract_milestones_data/, contract_milestones_data_for_success/, subcontractors/, service_office_users/, subscriptions/
-  service_office_user_data_authorization/, entities_pairs/
-  system_lookups/, system_lookup_values/, screens/, Languages/, Languages_Screens/
-  Translations/, api_keys/, email_verification/, subscriptions_offers/, subscription_offer_prices/, users/
-  run-sql.mjs, verify-table.mjs, db-config.json
+components/                 # Landing page + components/ui
+config/                     # app-feature-settings.json
+database/                   # SQL scripts, types, modals per domain entity
 Documents/
-  architecture.md         # This file
-proxy.ts                  # Request boundary (auth redirect)
-.cursorrules              # Project-wide coding conventions
+  architecture.md           # This document
+  architecture.html         # Visual architecture companion
+lib/utils.ts                # cn() helper
+proxy.ts                    # Next.js 16 request boundary (page auth)
+types/next-auth.d.ts        # NextAuth session typings
 ```
 
 ---
 
-## 10. Cursor Rule (Updating This Document)
+## 11. Cursor rule (updating this document)
 
-A Cursor rule is configured so that **at the end of every significant change** (new features, new API routes, new tables, major refactors, new security measures, or structural changes), the agent must **update this document** (`Documents/architecture.md`) to reflect:
+A Cursor rule (`.cursor/rules/update-architecture-doc.mdc`) requires updating **`Documents/architecture.md`** (and the HTML companion when diagrams or major structure change) after:
 
-- New or removed routes, tables, or components.
-- Changes in auth or authorization flow.
-- New technologies or major version changes.
-- Any section that becomes outdated.
+- New or removed API routes, tables, or pages  
+- Auth or authorization changes  
+- New global components, contexts, or providers  
+- Technology or dependency upgrades  
+- Structural or data-flow changes  
 
-Keep this file accurate and concise so new team members can onboard quickly.
+Keep sections accurate, split technologies by **frontend / backend / database**, and extend the **Components catalog** when new modals or shell components are added.

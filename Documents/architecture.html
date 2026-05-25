@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Timese (BaaS) – Architecture</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --surface2: #243044;
+      --text: #e7ecf3;
+      --muted: #94a3b8;
+      --accent: #3b82f6;
+      --accent2: #22c55e;
+      --border: #334155;
+      --frontend: #8b5cf6;
+      --backend: #f59e0b;
+      --db: #06b6d4;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    header {
+      background: linear-gradient(135deg, #1e3a5f 0%, #0f1419 60%);
+      border-bottom: 1px solid var(--border);
+      padding: 2.5rem 2rem;
+    }
+    header h1 { margin: 0 0 0.5rem; font-size: 2rem; font-weight: 700; }
+    header p { margin: 0; color: var(--muted); max-width: 52rem; }
+    header a { color: var(--accent); }
+    nav.toc {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.5rem;
+      font-size: 0.9rem;
+    }
+    nav.toc a { color: var(--muted); text-decoration: none; }
+    nav.toc a:hover { color: var(--accent); }
+    main { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+    section {
+      margin-bottom: 3rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.75rem;
+    }
+    h2 {
+      margin: 0 0 1rem;
+      font-size: 1.35rem;
+      border-bottom: 2px solid var(--accent);
+      padding-bottom: 0.5rem;
+    }
+    h3 { margin: 1.5rem 0 0.75rem; font-size: 1.05rem; color: var(--muted); }
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .tech-card {
+      border-radius: 10px;
+      padding: 1.25rem;
+      border: 1px solid var(--border);
+    }
+    .tech-card.frontend { border-left: 4px solid var(--frontend); background: rgba(139, 92, 246, 0.08); }
+    .tech-card.backend { border-left: 4px solid var(--backend); background: rgba(245, 158, 11, 0.08); }
+    .tech-card.database { border-left: 4px solid var(--db); background: rgba(6, 182, 212, 0.08); }
+    .tech-card h4 { margin: 0 0 0.75rem; font-size: 1rem; }
+    .tech-card ul { margin: 0; padding-left: 1.2rem; color: var(--muted); font-size: 0.92rem; }
+    .tech-card li { margin-bottom: 0.35rem; }
+    .diagram-wrap {
+      background: #fff;
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin: 1rem 0;
+      overflow-x: auto;
+    }
+    .mermaid { text-align: center; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin-top: 0.75rem;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+    }
+    th { background: var(--surface2); color: var(--muted); font-weight: 600; }
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    .badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .badge-fe { background: var(--frontend); color: #fff; }
+    .badge-be { background: var(--backend); color: #111; }
+    .badge-db { background: var(--db); color: #111; }
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+    }
+    code { background: var(--surface2); padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.85em; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Timese (BaaS) – Application Architecture</h1>
+    <p>
+      Bill Management for SMBs — full-stack Next.js app with Google OAuth, PostgreSQL, and multi-tenant accounts.
+      Markdown source: <a href="architecture.md">architecture.md</a>
+    </p>
+  </header>
+
+  <nav class="toc">
+    <a href="#overview">Overview</a>
+    <a href="#tech">Technologies</a>
+    <a href="#diagram-system">System diagram</a>
+    <a href="#diagram-tenant">Data model</a>
+    <a href="#diagram-auth">Auth flow</a>
+    <a href="#pages">Pages</a>
+    <a href="#api">API</a>
+    <a href="#components">Components</a>
+  </nav>
+
+  <main>
+    <section id="overview">
+      <h2>1. Overview</h2>
+      <p>
+        <strong>Timese</strong> helps account owners manage <strong>service offices</strong>, their
+        <strong>customers</strong>, <strong>projects</strong>, <strong>contracts</strong> (milestones, hourly, success),
+        <strong>subscriptions</strong>, and <strong>service office users</strong> with fine-grained data authorization.
+      </p>
+      <p>
+        Tenancy is enforced at the <code>accounts</code> layer: every API query joins through
+        <code>accounts.user_id</code> so users only access their own data.
+      </p>
+    </section>
+
+    <section id="tech">
+      <h2>2. Technologies (by layer)</h2>
+      <div class="tech-grid">
+        <div class="tech-card frontend">
+          <h4><span class="badge badge-fe">Frontend</span></h4>
+          <ul>
+            <li>React 19 + Next.js 16 App Router</li>
+            <li>TypeScript 5.9</li>
+            <li>Tailwind CSS 4</li>
+            <li>Contexts: Auth, Theme, Language, Translation</li>
+            <li>Client modals under <code>database/</code></li>
+            <li>Geist fonts, Radix slot, CVA UI primitives</li>
+          </ul>
+        </div>
+        <div class="tech-card backend">
+          <h4><span class="badge badge-be">Backend</span></h4>
+          <ul>
+            <li>Next.js Route Handlers (<code>app/api/*</code>)</li>
+            <li>NextAuth 4 — Google OAuth, JWT session</li>
+            <li><code>proxy.ts</code> — page-level auth gate</li>
+            <li><code>getAuthenticatedUser()</code> — API auth</li>
+            <li>Nodemailer / Resend (email verification)</li>
+            <li>LangChain (optional GitHub summarizer)</li>
+          </ul>
+        </div>
+        <div class="tech-card database">
+          <h4><span class="badge badge-db">Database</span></h4>
+          <ul>
+            <li>PostgreSQL via <code>pg</code> 8.18</li>
+            <li>Config: <code>PG*</code> env or <code>db-config.json</code></li>
+            <li>SQL scripts per entity in <code>database/</code></li>
+            <li>Runner: <code>database/run-sql.mjs</code></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="diagram-system">
+      <h2>3. System architecture</h2>
+      <div class="diagram-wrap">
+        <pre class="mermaid">
+flowchart TB
+  subgraph Browser["Browser — Frontend"]
+    PAGES["App pages + Sidebar"]
+    MODALS["Feature modals\n(database/*)"]
+    CTX["Providers:\nAuth · Theme · Language · Translation"]
+    AUTO["AutoTranslate"]
+  end
+
+  subgraph Next["Next.js 16 — Backend + SSR"]
+    PROXY["proxy.ts\n(page protection)"]
+    ROUTER["App Router"]
+    API["REST /api/*"]
+    NA["NextAuth\n/api/auth"]
+  end
+
+  subgraph External["External"]
+    GOOGLE["Google OAuth"]
+  end
+
+  subgraph Store["Database"]
+    PG[("PostgreSQL")]
+  end
+
+  PAGES --> CTX
+  PAGES --> MODALS
+  CTX --> AUTO
+  PAGES -->|fetch| API
+  MODALS -->|fetch| API
+  PROXY --> ROUTER
+  ROUTER --> PAGES
+  NA --> GOOGLE
+  NA --> PG
+  API --> PG
+  PROXY -.->|session cookie| NA
+        </pre>
+      </div>
+    </section>
+
+    <section id="diagram-tenant">
+      <h2>4. Tenant & entity model</h2>
+      <div class="diagram-wrap">
+        <pre class="mermaid">
+erDiagram
+  users ||--o{ accounts : owns
+  accounts ||--o{ service_offices : contains
+  service_offices ||--o{ customers : has
+  service_offices ||--o{ service_office_users : employs
+  service_offices ||--o{ subscriptions : subscribes
+  customers ||--o{ projects : owns
+  customers ||--o{ contracts : signs
+  contracts ||--o{ contract_milestones_data : milestones
+  contracts ||--o{ contract_user_fee : hourly_fees
+  subscriptions_offers ||--o{ subscriptions : plan
+  subscriptions_offers ||--o{ subscription_offer_prices : pricing
+        </pre>
+      </div>
+    </section>
+
+    <section id="diagram-auth">
+      <h2>5. Authentication sequence</h2>
+      <div class="diagram-wrap">
+        <pre class="mermaid">
+sequenceDiagram
+  participant U as User
+  participant B as Browser
+  participant P as proxy.ts
+  participant N as NextAuth
+  participant A as API route
+  participant D as PostgreSQL
+
+  U->>B: Open protected page
+  B->>P: HTTP request
+  alt No session cookie
+    P-->>B: Redirect to /
+  else Session valid
+    P-->>B: Continue to page
+  end
+  U->>B: Sign in with Google
+  B->>N: OAuth flow
+  N->>D: Upsert users row
+  N-->>B: JWT session cookie
+  B->>A: fetch /api/...
+  A->>N: getServerSession
+  A->>D: Query with user_id filter
+  A-->>B: JSON response
+        </pre>
+      </div>
+    </section>
+
+    <section id="pages">
+      <h2>6. Application pages</h2>
+      <table>
+        <thead>
+          <tr><th>Route</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>/</code></td><td>Landing + Google sign-in</td></tr>
+          <tr><td><code>/accounts</code></td><td>Account management + wizard</td></tr>
+          <tr><td><code>/service-offices</code></td><td>Service offices + subscriptions</td></tr>
+          <tr><td><code>/customers</code></td><td>Customers</td></tr>
+          <tr><td><code>/projects</code></td><td>Projects + contract links</td></tr>
+          <tr><td><code>/contracts</code></td><td>Contracts + milestones / hourly / success</td></tr>
+          <tr><td><code>/user-contract-fee</code></td><td>Hourly fee by professional grade</td></tr>
+          <tr><td><code>/service-office-users</code></td><td>Users + authorization wizard</td></tr>
+          <tr><td><code>/subscriptions-offers</code></td><td>Subscription catalog</td></tr>
+          <tr><td><code>/system-lookups</code></td><td>Reference data</td></tr>
+          <tr><td><code>/languages</code>, <code>/language-labels</code></td><td>i18n administration</td></tr>
+          <tr><td><code>/screens</code></td><td>UI screens + permissions</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="api">
+      <h2>7. API surface (summary)</h2>
+      <p>All business routes authenticate via <code>getAuthenticatedUser()</code> and scope data by account ownership.</p>
+      <table>
+        <thead>
+          <tr><th>Domain</th><th>Base path</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Auth</td><td><code>/api/auth/[...nextauth]</code></td></tr>
+          <tr><td>Accounts & email verify</td><td><code>/api/accounts</code>, <code>/api/account/verify-email/*</code></td></tr>
+          <tr><td>Service offices</td><td><code>/api/service-offices</code></td></tr>
+          <tr><td>Customers, projects, contracts</td><td><code>/api/customers</code>, <code>/api/projects</code>, <code>/api/contracts</code></td></tr>
+          <tr><td>Milestones & fees</td><td><code>/api/contract-milestones</code>, <code>/api/contract-success-milestones</code>, <code>/api/contract-user-fee</code></td></tr>
+          <tr><td>Users & authorization</td><td><code>/api/service-office-users</code>, <code>/api/user-data-authorization</code></td></tr>
+          <tr><td>Subscriptions</td><td><code>/api/subscriptions-offers</code></td></tr>
+          <tr><td>i18n & screens</td><td><code>/api/languages</code>, <code>/api/translations</code>, <code>/api/ui-screens</code>, <code>/api/screens</code></td></tr>
+          <tr><td>Lookups</td><td><code>/api/system-lookups</code>, <code>/api/system-lookup-values</code></td></tr>
+          <tr><td>Settings & keys</td><td><code>/api/app-feature-settings</code>, <code>/api/keys</code></td></tr>
+        </tbody>
+      </table>
+      <p style="color: var(--muted); font-size: 0.9rem;">Full endpoint table: see <a href="architecture.md#62-api-endpoints">architecture.md §6.2</a>.</p>
+    </section>
+
+    <section id="components">
+      <h2>8. Components catalog</h2>
+      <h3>Application shell</h3>
+      <table>
+        <thead><tr><th>Component</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td>sidebar.tsx</td><td>Navigation, mobile menu, sign-out</td></tr>
+          <tr><td>notifications.tsx</td><td>Toast notifications</td></tr>
+          <tr><td>AutoTranslate.tsx</td><td>Runtime DOM translation</td></tr>
+          <tr><td>ThemeSelector.tsx</td><td>Light/dark theme</td></tr>
+        </tbody>
+      </table>
+      <h3>Feature modals (28 modals + 2 wizards)</h3>
+      <p style="color: var(--muted); font-size: 0.9rem;">
+        Located under <code>database/&lt;entity&gt;/</code> — e.g. AccountModal, ContractModal,
+        ContractMilestonesModal, SubscriptionOfferModal, ScreenPermissionsModal,
+        AssignCustomersProjectsWizard. Full list in
+        <a href="architecture.md#9-components-catalog">architecture.md §9</a>.
+      </p>
+      <h3>Landing UI</h3>
+      <p style="color: var(--muted); font-size: 0.9rem;">
+        <code>components/</code> — header, hero, features, how-it-works, pricing, cta, footer, ui/button, ui/card, ui/badge.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    Timese (BaaS) · Generated architecture view · Sync with Documents/architecture.md when the system changes
+  </footer>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "neutral",
+      securityLevel: "loose",
+      flowchart: { curve: "basis" },
+    });
+  </script>
+</body>
+</html>
