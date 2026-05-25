@@ -35,6 +35,9 @@ yarn-error.log*
 env.local
 env.download
 
+# local notes / commands (may contain credentials)
+gitCommands.txt
+
 # vercel
 .vercel
 
